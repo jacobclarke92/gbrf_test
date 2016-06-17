@@ -1,0 +1,55 @@
+<!doctype html>
+<html class="no-js" lang="">
+	<head>
+		<meta charset="utf-8">
+		<meta http-equiv="x-ua-compatible" content="ie=edge">
+		<title>GBRF Fishies</title>
+		<link rel="stylesheet" href="assets/turret.css">
+		<style type="text/css">
+			h2, h6 {
+				color: white;
+			}
+			.media {
+			    background-color: transparent;
+			}
+			.media>canvas {
+				display: block;
+			    position: absolute;
+			    top: 0;
+			    right: 0;
+			    bottom: 0;
+			    left: 0;
+			    width: 100%;
+			    height: 100%;
+			}
+			.circle {
+				border-radius: 100%;
+			}
+
+			#fishies_bg {
+				position: fixed;
+				top: 0;
+				left: 0;
+				bottom: 0;
+				right: 0;
+				z-index: -1;
+			}
+		</style>
+	</head>
+	<body>
+
+		<div class="container">
+			<div class="row">
+				<div class="column-1 margin-top-medium text-center">
+					<h2>GBRF Fishies Boids Test</h2>
+					<h6>Jacob Clarke</h6>
+				</div>
+			</div>
+		</div>
+
+		<div id="fishies_bg"></div>
+
+		<script src="dist/gbrf_test.js"></script>
+
+	</body>
+</html>		
