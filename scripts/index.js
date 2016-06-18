@@ -133,18 +133,26 @@ function animate() {
 					zonesGraphic.moveTo(zoneX, 0);
 					zonesGraphic.lineTo(zoneX, height);
 				}
-				const count = fishies.filter(fish => 
+				const children = fishies.filter(fish => 
 					fish.position.x > zoneX && 
 					fish.position.x < zoneX+zoneSize && 
 					fish.position.y > zoneY && 
 					fish.position.y < zoneY+zoneSize
-				).length;
-				zones[row][col] = {count};
+				);
+				const center = children.reduce((prev, current) => ({x: prev.x+(current.position.x/children.length), y: prev.y+(current.position.y/children.length)}), {x: 0, y: 0});
+				zones[row][col] = {children, center, count: children.length};
 
-				const label = new Text(count+' fishies', {font: '12px sans-serif', fill: 0xFFFFFF});
+				const label = new Text(children.length+' fishies', {font: '12px sans-serif', fill: 0xFFFFFF});
 				label.position = {x: zoneX+10, y: zoneY+10};
 				zonesContainer.addChild(label);
 				zonesContainer.labels.push(label);
+
+				const pt = new Graphics();
+				pt.beginFill(0xFFFFFF);
+				pt.drawCircle(0, 0, 10);
+				pt.position = center;
+				zonesContainer.addChild(pt);
+				zonesContainer.labels.push(pt)
 			}
 		}
 	}
