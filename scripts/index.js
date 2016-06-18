@@ -2,6 +2,7 @@ import $ from 'jquery'
 import PIXI, { Container, Sprite, Graphics, Text, BaseTexture, Texture, loader as Loader } from 'pixi.js'
 import _throttle from 'lodash.throttle'
 
+const bgColor = 0x175282;
 const fishFiles = ['fish1.png','fish2.png','fish3.png','fish4.png','fish5.png','fish6.png','fish7.png','fish8.png','fish9.png','fish10.png','fish11.png','fish12.png'];
 const numFishies = 100;
 const fishScale = 0.3;
@@ -46,7 +47,7 @@ export function init() {
 		renderer = new PIXI.autoDetectRenderer(width, height, {
 			resolution, 
 			transparent: false,
-			backgroundColor: 0x175282,
+			backgroundColor: bgColor,
 		});
 		canvas = renderer.view;
 		$fishiesContainer[0].appendChild(canvas);
@@ -71,12 +72,11 @@ export function init() {
 	});
 }
 
-function updateScroll() {
+const updateScroll = _throttle(() => {
 	const newScroll = $(document).scrollTop();
 	scrollOffset += scroll-newScroll;
 	scroll = newScroll;
-
-}
+}, 1000/60);
 
 function rendererResize() {
 	width = $fishiesContainer.width();
