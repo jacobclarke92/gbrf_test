@@ -73,4 +73,12 @@ export default class Point {
 		return this;
 	}
 
+	limit(max) {
+		if(this.x*this.x + this.y*this.y > max*max) {
+			this.normalize();
+			this.multiply(max);
+		}
+		return this;
+	}
+
 }
