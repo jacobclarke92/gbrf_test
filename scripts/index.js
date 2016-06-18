@@ -3,12 +3,9 @@ import PIXI, { Container, Sprite, Graphics, Text, BaseTexture, Texture, loader a
 import _throttle from 'lodash.throttle'
 
 const fishFiles = ['fish1.png','fish2.png','fish3.png','fish4.png','fish5.png','fish6.png','fish7.png','fish8.png','fish9.png','fish10.png','fish11.png'];
-const fishSprites = [];
-const fishies = [];
 const numFishies = 100;
 const fishScale = 0.3;
-const PI = Math.PI;
-const PI2 = PI*2;
+const offscreen = 35; //px;
 
 const showZones = true;
 const zones = [];
@@ -25,6 +22,11 @@ let width = null;
 let height = null;
 let resolution = null;
 
+const PI = Math.PI;
+const PI2 = PI*2;
+
+const fishSprites = [];
+const fishies = [];
 
 let zoneCalcThrottleCount = 0;
 const zonesContainer = new Container();
@@ -163,6 +165,10 @@ function animate() {
 		fish.position.y += Math.sin(fish.rotation);
 		const absRotation = (fish.rotation%PI2);
 		fish.scale.y = (absRotation > PI/2 && absRotation < PI*1.5) ? -fishScale : fishScale;
+		if(fish.position.x < -offscreen*1.5) fish.position.x = width + offscreen;
+		if(fish.position.x > width+offscreen*1.5) fish.position.x = -offscreen;
+		if(fish.position.y < -offscreen) fish.position.y = height + offscreen;
+		if(fish.position.y > height+offscreen*1.5) fish.position.y = -offscreen;
 	}
 
 	renderer.render(stage);
