@@ -2,7 +2,7 @@ import $ from 'jquery'
 import PIXI, { Container, Sprite, Graphics, Text, BaseTexture, Texture, loader as Loader } from 'pixi.js'
 import _throttle from 'lodash.throttle'
 
-const fishFiles = ['fish1.png','fish2.png','fish3.png','fish4.png','fish5.png','fish6.png','fish7.png','fish8.png','fish9.png','fish10.png','fish11.png'];
+const fishFiles = ['fish1.png','fish2.png','fish3.png','fish4.png','fish5.png','fish6.png','fish7.png','fish8.png','fish9.png','fish10.png','fish11.png','fish12.png'];
 const numFishies = 100;
 const fishScale = 0.3;
 const offscreen = 35; //px;
