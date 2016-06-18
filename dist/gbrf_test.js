@@ -82,13 +82,19 @@
 	var fishFiles = ['fish1.png', 'fish2.png', 'fish3.png', 'fish4.png', 'fish5.png', 'fish6.png', 'fish7.png', 'fish8.png', 'fish9.png', 'fish10.png', 'fish11.png', 'fish12.png'];
 	var numFishies = 100;
 	var fishScale = 0.25;
+	
 	var offscreen = 35; //px;
 	var desiredSeparation = 35; //px
-	var maxSpeed = 5;
+	var zoneSize = 100; // px
+	
+	var maxSpeed = 6;
 	var maxForce = 0.3;
+	var seperationMultiple = 50;
+	var cohesionMultiple = 1;
+	var alignmentMultiple = 0.5;
+	
 	var showZones = false;
-	var zoneSize = 50; // px
-	var zoneCalcThrottle = 10; // every nth frame
+	var zoneCalcThrottle = 8; // every nth frame
 	
 	var $fishiesContainer = null;
 	var animating = true;
@@ -429,17 +435,17 @@
 	
 				// calculate flocking forces
 				var surroundingFishies = getSurroundingFishies(fish.zone);
-				var seperateForce = seperate(fish, surroundingFishies);
+				var seperationForce = seperation(fish, surroundingFishies);
 				var cohesionForce = cohesion(fish, surroundingFishies);
-				var alignForce = align(fish, surroundingFishies);
+				var alignmentForce = alignment(fish, surroundingFishies);
 	
 				// weight each force
-				seperateForce.multiply(30);
-				cohesionForce.multiply(1);
-				alignForce.multiply(0.5);
+				seperationForce.multiply(seperationMultiple);
+				cohesionForce.multiply(cohesionMultiple);
+				alignmentForce.multiply(alignmentMultiple);
 	
 				// adjust fish velocity
-				fish.acceleration.add(seperateForce, cohesionForce, alignForce);
+				fish.acceleration.add(seperationForce, cohesionForce, alignmentForce);
 				fish.velocity.add(fish.acceleration);
 				fish.velocity.limit(maxSpeed);
 	
@@ -460,7 +466,6 @@
 	
 				// keep upright
 				var absRotation = fish.rotation % PI2;
-				if (fish.key === 0) console.log(fish.aimRotation);
 				fish.scale.y = absRotation > PI / 2 && absRotation < PI * 1.5 ? -fishScale : fishScale;
 			}
 		} catch (err) {
@@ -484,8 +489,13 @@
 		if (animating) window.requestAnimationFrame(animate);
 	}
 	
+	/*
+	 * Below functions loosely based on Flocking by Daniel Shiffman 
+	 * https://processing.org/examples/flocking.html
+	 */
+	
 	// calcuates the seperation velocity based on surrounding fish
-	function seperate(fish, surroundingFishies) {
+	function seperation(fish, surroundingFishies) {
 		var steer = new _Point2.default();
 		var _iteratorNormalCompletion6 = true;
 		var _didIteratorError6 = false;
@@ -528,10 +538,11 @@
 	}
 	
 	// calcuates the alignment velocity based on surrounding fish
-	function align(fish) {
+	function alignment(fish) {
 		var surroundingFishies = arguments.length <= 1 || arguments[1] === undefined ? [] : arguments[1];
 	
 	
+		// this steers fish towards the most densely packed quadrant rather than all surrounding quadrants
 		// const surroundingZones = getSurroundingZones(fish.zone);
 		// if(!surroundingZones.length) return new Point();
 		// surroundingZones.sort((a,b) => a.count > b.count ? -1 : (a.count < b.count ? 1 : 0));

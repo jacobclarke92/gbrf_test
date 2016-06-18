@@ -8,13 +8,19 @@ const bgColor = 0x175282;
 const fishFiles = ['fish1.png','fish2.png','fish3.png','fish4.png','fish5.png','fish6.png','fish7.png','fish8.png','fish9.png','fish10.png','fish11.png','fish12.png'];
 const numFishies = 100;
 const fishScale = 0.25;
+
 const offscreen = 35; //px;
 const desiredSeparation = 35; //px
-const maxSpeed = 5;
+const zoneSize = 100; // px
+
+const maxSpeed = 6;
 const maxForce = 0.3;
+const seperationMultiple = 50;
+const cohesionMultiple = 1;
+const alignmentMultiple = 0.5;
+
 const showZones = false;
-const zoneSize = 50; // px
-const zoneCalcThrottle = 10; // every nth frame
+const zoneCalcThrottle = 8; // every nth frame
 
 let $fishiesContainer = null;
 let animating = true;
@@ -244,17 +250,17 @@ function animate() {
 		 
 		// calculate flocking forces
 		const surroundingFishies = getSurroundingFishies(fish.zone);
-		const seperateForce = seperate(fish, surroundingFishies);
+		const seperationForce = seperation(fish, surroundingFishies);
 		const cohesionForce = cohesion(fish, surroundingFishies);
-		const alignForce = align(fish, surroundingFishies);
+		const alignmentForce = alignment(fish, surroundingFishies);
 
 		// weight each force
-		seperateForce.multiply(30);
-		cohesionForce.multiply(1);
-		alignForce.multiply(0.5);
+		seperationForce.multiply(seperationMultiple);
+		cohesionForce.multiply(cohesionMultiple);
+		alignmentForce.multiply(alignmentMultiple);
 
 		// adjust fish velocity
-		fish.acceleration.add(seperateForce, cohesionForce, alignForce);
+		fish.acceleration.add(seperationForce, cohesionForce, alignmentForce);
 		fish.velocity.add(fish.acceleration);
 		fish.velocity.limit(maxSpeed);
 
@@ -275,7 +281,6 @@ function animate() {
 
 		// keep upright
 		const absRotation = (fish.rotation%PI2);
-		if(fish.key === 0) console.log(fish.aimRotation);
 		fish.scale.y = (absRotation > PI/2 && absRotation < PI*1.5) ? -fishScale : fishScale;
 
 	}
@@ -285,8 +290,13 @@ function animate() {
 	if(animating) window.requestAnimationFrame(animate);
 }
 
+/*
+ * Below functions loosely based on Flocking by Daniel Shiffman 
+ * https://processing.org/examples/flocking.html
+ */
+
 // calcuates the seperation velocity based on surrounding fish
-function seperate(fish, surroundingFishies) {
+function seperation(fish, surroundingFishies) {
 	const steer = new Point();
 	for(let friend of surroundingFishies) {
 		const position = new Point(fish.position.x, fish.position.y);
@@ -307,8 +317,9 @@ function seperate(fish, surroundingFishies) {
 }
 
 // calcuates the alignment velocity based on surrounding fish
-function align(fish, surroundingFishies = []) {
+function alignment(fish, surroundingFishies = []) {
 	
+	// this steers fish towards the most densely packed quadrant rather than all surrounding quadrants
 	// const surroundingZones = getSurroundingZones(fish.zone);
 	// if(!surroundingZones.length) return new Point();
 	// surroundingZones.sort((a,b) => a.count > b.count ? -1 : (a.count < b.count ? 1 : 0));
