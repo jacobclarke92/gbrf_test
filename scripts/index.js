@@ -21,6 +21,8 @@ let stage = null;
 let width = null;
 let height = null;
 let resolution = null;
+let scroll = 0;
+let scrollOffset = 0;
 
 const PI = Math.PI;
 const PI2 = PI*2;
@@ -63,7 +65,17 @@ export function init() {
 
 		Loader.load();
 
+		$(document).scroll(updateScroll);
+		updateScroll();
+
 	});
+}
+
+function updateScroll() {
+	const newScroll = $(document).scrollTop();
+	scrollOffset += scroll-newScroll;
+	scroll = newScroll;
+
 }
 
 function rendererResize() {
@@ -160,16 +172,25 @@ function animate() {
 	}
 
 	for(let fish of fishies) {
+		
+		// swim towards random rotation
 		fish.rotation += Math.random()*0.2 - 0.1;
 		fish.position.x += Math.cos(fish.rotation);
 		fish.position.y += Math.sin(fish.rotation);
+		
+		// keep upright
 		const absRotation = (fish.rotation%PI2);
 		fish.scale.y = (absRotation > PI/2 && absRotation < PI*1.5) ? -fishScale : fishScale;
+
+		// keep in bounds
 		if(fish.position.x < -offscreen*1.5) fish.position.x = width + offscreen;
 		if(fish.position.x > width+offscreen*1.5) fish.position.x = -offscreen;
-		if(fish.position.y < -offscreen) fish.position.y = height + offscreen;
-		if(fish.position.y > height+offscreen*1.5) fish.position.y = -offscreen;
+		if(fish.position.y < -offscreen) fish.position.y = height + offscreen - (-offscreen - fish.position.y);
+		if(fish.position.y > height+offscreen*1.5) fish.position.y = -offscreen - (height+offscreen*1.5 - fish.position.y);
+
+		fish.position.y += scrollOffset/2;
 	}
+	scrollOffset = 0;
 
 	renderer.render(stage);
 	if(animating) window.requestAnimationFrame(animate);
