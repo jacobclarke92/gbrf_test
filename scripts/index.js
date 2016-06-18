@@ -5,7 +5,10 @@ import _throttle from 'lodash.throttle'
 const fishFiles = ['fish1.png','fish2.png','fish3.png','fish4.png','fish5.png','fish6.png','fish7.png','fish8.png','fish9.png','fish10.png','fish11.png'];
 const fishSprites = [];
 const fishies = [];
-const numFishies = 500;
+const numFishies = 100;
+const fishScale = 0.3;
+const PI = Math.PI;
+const PI2 = PI*2;
 
 const showZones = true;
 const zones = [];
@@ -93,11 +96,11 @@ function initScene() {
 	for(let i=0; i < numFishies; i ++) {
 		const fishSprite = new Sprite();
 		fishSprite.texture = fishSprites[i%fishSprites.length].texture;
-		fishSprite.anchor = {x: 0.1, y: 0.5};
+		fishSprite.anchor = {x: 0.25, y: 0.5};
 		fishSprite.position.x = Math.random()*width;
 		fishSprite.position.y = Math.random()*height;
 		fishSprite.rotation = Math.random()*Math.PI*2;
-		fishSprite.scale.set(0.3);
+		fishSprite.scale = {x: -fishScale, y: fishScale};
 		stage.addChild(fishSprite);
 		fishies.push(fishSprite);
 	}
@@ -148,8 +151,10 @@ function animate() {
 
 	for(let fish of fishies) {
 		fish.rotation += Math.random()*0.2 - 0.1;
-		fish.position.x += Math.cos(fish.rotation+Math.PI);
-		fish.position.y += Math.sin(fish.rotation+Math.PI);
+		fish.position.x += Math.cos(fish.rotation);
+		fish.position.y += Math.sin(fish.rotation);
+		const absRotation = (fish.rotation%PI2);
+		fish.scale.y = (absRotation > PI/2 && absRotation < PI*1.5) ? -fishScale : fishScale;
 	}
 
 	renderer.render(stage);
