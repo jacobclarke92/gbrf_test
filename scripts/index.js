@@ -6,8 +6,8 @@ import Point from './Point'
 
 const bgColor = 0x175282;
 const fishFiles = ['fish1.png','fish2.png','fish3.png','fish4.png','fish5.png','fish6.png','fish7.png','fish8.png','fish9.png','fish10.png','fish11.png','fish12.png'];
-const numFishies = 200;
-const fishScale = 0.2;
+const numFishies = 100;
+const fishScale = 0.25;
 const offscreen = 35; //px;
 const desiredSeparation = 35; //px
 const maxSpeed = 5;
@@ -112,11 +112,12 @@ function initScene() {
 
 	stage.addChild(zonesContainer);
 
+	// generate all fish sprites from the loaded images
 	for(let i=0; i < numFishies; i ++) {
 		const fishSprite = new Sprite();
 		fishSprite.key = i;
 		fishSprite.texture = fishSprites[i%fishSprites.length].texture;
-		fishSprite.anchor = new Point(0.45, 0.5);
+		fishSprite.anchor = new Point(0.3, 0.5);
 		fishSprite.position.x = Math.random()*width;
 		fishSprite.position.y = Math.random()*height;
 		fishSprite.rotation = Math.random()*Math.PI*2;
@@ -142,23 +143,29 @@ function animate() {
 	// calculate zones
 	if(++zoneCalcThrottleCount >= zoneCalcThrottle) {
 		zoneCalcThrottleCount = 0;
+
+		// reset debug labels etc.
 		if(showZones) {
 			(zonesContainer.labels || []).map(label => zonesContainer.removeChild(label));
 			zonesContainer.labels = [];
 			zonesGraphic.clear();
 			zonesGraphic.lineStyle(2, 0xFFFFFF, 0.5);
 		}
+		
 		for(let row = 0; row < height/zoneSize; row ++) {
 			const zoneY = row*zoneSize;
 			zones[row] = [];
+
+			// draw row quadrant
 			if(showZones) {
 				zonesGraphic.moveTo(0, zoneY);
 				zonesGraphic.lineTo(width, zoneY);
 			}
+
 			for(let col = 0; col < width/zoneSize; col ++) {
 				const zoneX = col*zoneSize;
 				
-				// draw quadrant
+				// draw column quadrant
 				if(showZones) {
 					zonesGraphic.moveTo(zoneX, 0);
 					zonesGraphic.lineTo(zoneX, height);
@@ -214,42 +221,61 @@ function animate() {
 		}
 	}
 
-	let i=0;
+	// iterate over the fishies!
+	let i = 0;
 	for(let fish of fishies) {
+		i++;
 
 		// keep in bounds
 		if(fish.position.x < -offscreen) fish.position.x = width + offscreen;
 		if(fish.position.x > width+offscreen) fish.position.x = -offscreen;
-		if(fish.position.y < -offscreen) fish.position.y = height + offscreen - (-offscreen - fish.position.y);
-		if(fish.position.y > height+offscreen) fish.position.y = -offscreen - (height+offscreen - fish.position.y);
+		if(fish.position.y < -offscreen) {
+			fish.position.y = height + offscreen - (-offscreen - fish.position.y);
+			fish.position.x = Math.round(Math.random()*width); // randomize x position
+		}
+		if(fish.position.y > height+offscreen) {
+			fish.position.y = -offscreen - (height+offscreen - fish.position.y);
+			fish.position.x = Math.round(Math.random()*width); // randomize x position
+		}
 
 		fish.position.y += scrollOffset;
-		// i++;
 		// fish.position.y += scrollOffset/((i%3)/2 + 1);
 		// fish.tint = bgColor/((i%3));
 		 
+		// calculate flocking forces
 		const surroundingFishies = getSurroundingFishies(fish.zone);
 		const seperateForce = seperate(fish, surroundingFishies);
 		const cohesionForce = cohesion(fish, surroundingFishies);
 		const alignForce = align(fish, surroundingFishies);
 
-		seperateForce.multiply(50);
+		// weight each force
+		seperateForce.multiply(30);
 		cohesionForce.multiply(1);
 		alignForce.multiply(0.5);
 
+		// adjust fish velocity
 		fish.acceleration.add(seperateForce, cohesionForce, alignForce);
-
 		fish.velocity.add(fish.acceleration);
 		fish.velocity.limit(maxSpeed);
+
+		// reposition fish
 		fish.position.x += fish.velocity.x;
 		fish.position.y += fish.velocity.y;
+
+		// reset acceleration each frame
 		fish.acceleration.multiply(0);
 
+		// ease to correct rotation
 		fish.aimRotation = Math.atan2(fish.velocity.y, fish.velocity.x);
-		fish.rotation = fish.aimRotation;
+		if(fish.aimRotation < 0) fish.aimRotation += PI2;
+		let diff = fish.aimRotation - fish.rotation;
+		if(diff > PI) diff -= PI2;
+		if(diff < -PI) diff += PI2;
+		fish.rotation += diff/5;
 
 		// keep upright
 		const absRotation = (fish.rotation%PI2);
+		if(fish.key === 0) console.log(fish.aimRotation);
 		fish.scale.y = (absRotation > PI/2 && absRotation < PI*1.5) ? -fishScale : fishScale;
 
 	}
@@ -259,6 +285,7 @@ function animate() {
 	if(animating) window.requestAnimationFrame(animate);
 }
 
+// calcuates the seperation velocity based on surrounding fish
 function seperate(fish, surroundingFishies) {
 	const steer = new Point();
 	for(let friend of surroundingFishies) {
@@ -279,13 +306,14 @@ function seperate(fish, surroundingFishies) {
 	return steer;
 }
 
-function align(fish, surroundingFishies) {
-	/*
-	const surroundingZones = getSurroundingZones(fish.zone);
-	if(!surroundingZones.length) return new Point();
-	surroundingZones.sort((a,b) => a.count > b.count ? -1 : (a.count < b.count ? 1 : 0));
-	const surroundingFishies = surroundingZones[0].children;
-	*/
+// calcuates the alignment velocity based on surrounding fish
+function align(fish, surroundingFishies = []) {
+	
+	// const surroundingZones = getSurroundingZones(fish.zone);
+	// if(!surroundingZones.length) return new Point();
+	// surroundingZones.sort((a,b) => a.count > b.count ? -1 : (a.count < b.count ? 1 : 0));
+	// surroundingFishies = surroundingZones[0].children;
+	
 	const sum = new Point();
 	let count = 0;
 	for(let friend of surroundingFishies) {
@@ -305,8 +333,8 @@ function align(fish, surroundingFishies) {
 	return steer;
 }
 
+// calcuates the cohesion velocity based on surrounding fish
 function cohesion(fish, surroundingFishies) {
-	// if(fish.key ===0) console.log(surroundingFishies);
 	const sum = new Point();
 	let count = 0;
 	for(let friend of surroundingFishies) {
@@ -322,6 +350,7 @@ function cohesion(fish, surroundingFishies) {
 	return seek(fish, sum);
 }
 
+// calculates and applies a steering force towards a target
 function seek(fish, target) {
 	const desired = target.subtract(fish.position);
 	desired.normalize();
@@ -331,6 +360,7 @@ function seek(fish, target) {
 	return steer;
 }
 
+// ended up being unused but could be useful
 function getSurroundingZones(zone) {
 	const surroundingZones = [
 		_get(zones, '['+(zone[0]-1)+']['+(zone[1]-1)+']', null), // TL
@@ -346,6 +376,7 @@ function getSurroundingZones(zone) {
 	return surroundingZones.filter(zone => zone !== null);
 }
 
+// gets surrounding fish from a quadrant
 function getSurroundingFishies(zone) {
 	return [
 		..._get(zones, '['+(zone[0]-1)+']['+(zone[1]-1)+'].children', []), // TL
@@ -359,14 +390,6 @@ function getSurroundingFishies(zone) {
 		..._get(zones, '['+(zone[0]+1)+']['+(zone[1]+1)+'].children', []), // BR
 	];
 }
-
-function getImmediateFishies(surroundingFishies) {
-	return surroundingFishies.filter(fish => {
-
-	});
-
-}
-
 
 
 init();

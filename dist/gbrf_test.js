@@ -80,13 +80,14 @@
 	
 	var bgColor = 0x175282;
 	var fishFiles = ['fish1.png', 'fish2.png', 'fish3.png', 'fish4.png', 'fish5.png', 'fish6.png', 'fish7.png', 'fish8.png', 'fish9.png', 'fish10.png', 'fish11.png', 'fish12.png'];
-	var numFishies = 30;
-	var fishScale = 0.3;
+	var numFishies = 100;
+	var fishScale = 0.25;
 	var offscreen = 35; //px;
-	
-	var showZones = true;
-	var zones = [];
-	var zoneSize = 200; // px
+	var desiredSeparation = 35; //px
+	var maxSpeed = 5;
+	var maxForce = 0.3;
+	var showZones = false;
+	var zoneSize = 50; // px
 	var zoneCalcThrottle = 10; // every nth frame
 	
 	var $fishiesContainer = null;
@@ -106,8 +107,9 @@
 	
 	var fishSprites = [];
 	var fishies = [];
+	var zones = [];
 	
-	var zoneCalcThrottleCount = 0;
+	var zoneCalcThrottleCount = zoneCalcThrottle;
 	var zonesContainer = new _pixi.Container();
 	var zonesGraphic = new _pixi.Graphics();
 	zonesContainer.addChild(zonesGraphic);
@@ -121,6 +123,7 @@
 			resolution = window.devicePixelRatio || 1;
 	
 			renderer = new _pixi2.default.autoDetectRenderer(width, height, {
+				// renderer = new PIXI.CanvasRenderer(width, height, {
 				resolution: resolution,
 				transparent: false,
 				backgroundColor: bgColor
@@ -205,22 +208,29 @@
 	
 		stage.addChild(zonesContainer);
 	
+		// generate all fish sprites from the loaded images
+	
 		var _loop = function _loop(i) {
 			var fishSprite = new _pixi.Sprite();
+			fishSprite.key = i;
 			fishSprite.texture = fishSprites[i % fishSprites.length].texture;
-			fishSprite.anchor = new _Point2.default(0.25, 0.5);
+			fishSprite.anchor = new _Point2.default(0.3, 0.5);
 			fishSprite.position.x = Math.random() * width;
 			fishSprite.position.y = Math.random() * height;
 			fishSprite.rotation = Math.random() * Math.PI * 2;
 			fishSprite.scale = new _Point2.default(-fishScale, fishScale);
-			fishSprite.buttonMode = true;
-			fishSprite.interactive = true;
-			fishSprite.on('mouseover', function () {
-				return fishSprite.over = true;
-			});
-			fishSprite.on('mouseout', function () {
-				return fishSprite.over = false;
-			});
+			fishSprite.acceleration = new _Point2.default();
+			fishSprite.velocity = new _Point2.default(Math.cos(fishSprite.rotation), Math.sin(fishSprite.rotation));
+			if (showZones) {
+				fishSprite.buttonMode = true;
+				fishSprite.interactive = true;
+				fishSprite.on('mouseover', function () {
+					return fishSprite.over = true;
+				});
+				fishSprite.on('mouseout', function () {
+					return fishSprite.over = false;
+				});
+			}
 			stage.addChild(fishSprite);
 			fishies.push(fishSprite);
 		};
@@ -237,18 +247,22 @@
 		// calculate zones
 		if (++zoneCalcThrottleCount >= zoneCalcThrottle) {
 			zoneCalcThrottleCount = 0;
+	
+			// reset debug labels etc.
 			if (showZones) {
 				(zonesContainer.labels || []).map(function (label) {
 					return zonesContainer.removeChild(label);
 				});
 				zonesContainer.labels = [];
 				zonesGraphic.clear();
-				zonesGraphic.lineStyle(1, 0xFFFFFF, 0.5);
+				zonesGraphic.lineStyle(2, 0xFFFFFF, 0.5);
 			}
 	
 			var _loop2 = function _loop2(row) {
 				var zoneY = row * zoneSize;
 				zones[row] = [];
+	
+				// draw row quadrant
 				if (showZones) {
 					zonesGraphic.moveTo(0, zoneY);
 					zonesGraphic.lineTo(width, zoneY);
@@ -257,7 +271,7 @@
 				var _loop3 = function _loop3(col) {
 					var zoneX = col * zoneSize;
 	
-					// draw quadrant
+					// draw column quadrant
 					if (showZones) {
 						zonesGraphic.moveTo(zoneX, 0);
 						zonesGraphic.lineTo(zoneX, height);
@@ -271,7 +285,7 @@
 					var center = children.reduce(function (point, current) {
 						return point.add({ x: current.position.x / count, y: current.position.y / count });
 					}, new _Point2.default());
-					zones[row][col] = { children: children, center: center, count: children.length };
+					zones[row][col] = { row: row, col: col, children: children, center: center, count: count };
 	
 					var _iteratorNormalCompletion4 = true;
 					var _didIteratorError4 = false;
@@ -279,9 +293,9 @@
 	
 					try {
 						for (var _iterator4 = children[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
-							var _fish2 = _step4.value;
+							var _fish = _step4.value;
 	
-							_fish2.zone = [row, col];
+							_fish.zone = [row, col];
 						}
 	
 						// display labels
@@ -330,8 +344,7 @@
 							var fish = _step2.value;
 	
 							if (fish.over) {
-								console.log(fish.over);
-								var surroundingFishies = getSurroundingZoneFishies(fish.zone);
+								var surroundingFishies = getSurroundingFishies(fish.zone);
 								var nearGraphic = new _pixi.Graphics();
 								nearGraphic.lineStyle(1, 0xFFFFFF, 0.5);
 								var _iteratorNormalCompletion3 = true;
@@ -386,6 +399,7 @@
 			}
 		}
 	
+		// iterate over the fishies!
 		var i = 0;
 		var _iteratorNormalCompletion5 = true;
 		var _didIteratorError5 = false;
@@ -395,26 +409,59 @@
 			for (var _iterator5 = fishies[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
 				var fish = _step5.value;
 	
-	
-				// swim towards random rotation
-				fish.rotation += Math.random() * 0.2 - 0.1;
-				fish.position.x += Math.cos(fish.rotation);
-				fish.position.y += Math.sin(fish.rotation);
-	
-				// keep upright
-				var absRotation = fish.rotation % PI2;
-				fish.scale.y = absRotation > PI / 2 && absRotation < PI * 1.5 ? -fishScale : fishScale;
+				i++;
 	
 				// keep in bounds
 				if (fish.position.x < -offscreen) fish.position.x = width + offscreen;
 				if (fish.position.x > width + offscreen) fish.position.x = -offscreen;
-				if (fish.position.y < -offscreen) fish.position.y = height + offscreen - (-offscreen - fish.position.y);
-				if (fish.position.y > height + offscreen) fish.position.y = -offscreen - (height + offscreen - fish.position.y);
+				if (fish.position.y < -offscreen) {
+					fish.position.y = height + offscreen - (-offscreen - fish.position.y);
+					fish.position.x = Math.round(Math.random() * width); // randomize x position
+				}
+				if (fish.position.y > height + offscreen) {
+					fish.position.y = -offscreen - (height + offscreen - fish.position.y);
+					fish.position.x = Math.round(Math.random() * width); // randomize x position
+				}
 	
 				fish.position.y += scrollOffset;
-				// i++;
 				// fish.position.y += scrollOffset/((i%3)/2 + 1);
 				// fish.tint = bgColor/((i%3));
+	
+				// calculate flocking forces
+				var surroundingFishies = getSurroundingFishies(fish.zone);
+				var seperateForce = seperate(fish, surroundingFishies);
+				var cohesionForce = cohesion(fish, surroundingFishies);
+				var alignForce = align(fish, surroundingFishies);
+	
+				// weight each force
+				seperateForce.multiply(30);
+				cohesionForce.multiply(1);
+				alignForce.multiply(0.5);
+	
+				// adjust fish velocity
+				fish.acceleration.add(seperateForce, cohesionForce, alignForce);
+				fish.velocity.add(fish.acceleration);
+				fish.velocity.limit(maxSpeed);
+	
+				// reposition fish
+				fish.position.x += fish.velocity.x;
+				fish.position.y += fish.velocity.y;
+	
+				// reset acceleration each frame
+				fish.acceleration.multiply(0);
+	
+				// ease to correct rotation
+				fish.aimRotation = Math.atan2(fish.velocity.y, fish.velocity.x);
+				if (fish.aimRotation < 0) fish.aimRotation += PI2;
+				var diff = fish.aimRotation - fish.rotation;
+				if (diff > PI) diff -= PI2;
+				if (diff < -PI) diff += PI2;
+				fish.rotation += diff / 5;
+	
+				// keep upright
+				var absRotation = fish.rotation % PI2;
+				if (fish.key === 0) console.log(fish.aimRotation);
+				fish.scale.y = absRotation > PI / 2 && absRotation < PI * 1.5 ? -fishScale : fishScale;
 			}
 		} catch (err) {
 			_didIteratorError5 = true;
@@ -437,15 +484,172 @@
 		if (animating) window.requestAnimationFrame(animate);
 	}
 	
-	function getSurroundingZoneFishies(zone) {
-		return [].concat(_toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] + 0) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] - 1) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] - 1) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] + 0) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] + 1) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] + 1) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] + 1) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] + 0) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] - 1) + '].children', [])));
+	// calcuates the seperation velocity based on surrounding fish
+	function seperate(fish, surroundingFishies) {
+		var steer = new _Point2.default();
+		var _iteratorNormalCompletion6 = true;
+		var _didIteratorError6 = false;
+		var _iteratorError6 = undefined;
+	
+		try {
+			for (var _iterator6 = surroundingFishies[Symbol.iterator](), _step6; !(_iteratorNormalCompletion6 = (_step6 = _iterator6.next()).done); _iteratorNormalCompletion6 = true) {
+				var friend = _step6.value;
+	
+				var position = new _Point2.default(fish.position.x, fish.position.y);
+				var dist = position.distance(friend.position);
+				var _count = 0;
+				if (dist > 0 && dist < desiredSeparation) {
+					_count++;
+					var diff = position.subtract(friend.position);
+					diff.normalize();
+					diff.divide(dist);
+					steer.add(diff);
+				}
+				if (_count > 0) {
+					steer.divide(_count);
+				}
+			}
+		} catch (err) {
+			_didIteratorError6 = true;
+			_iteratorError6 = err;
+		} finally {
+			try {
+				if (!_iteratorNormalCompletion6 && _iterator6.return) {
+					_iterator6.return();
+				}
+			} finally {
+				if (_didIteratorError6) {
+					throw _iteratorError6;
+				}
+			}
+		}
+	
+		return steer;
 	}
 	
-	// TL
-	function getImmediateFishies(_fish) {
-		return getSurroundingZoneFishies(_fish.zone).filter(function (fish) {});
+	// calcuates the alignment velocity based on surrounding fish
+	function align(fish) {
+		var surroundingFishies = arguments.length <= 1 || arguments[1] === undefined ? [] : arguments[1];
+	
+	
+		// const surroundingZones = getSurroundingZones(fish.zone);
+		// if(!surroundingZones.length) return new Point();
+		// surroundingZones.sort((a,b) => a.count > b.count ? -1 : (a.count < b.count ? 1 : 0));
+		// surroundingFishies = surroundingZones[0].children;
+	
+		var sum = new _Point2.default();
+		var count = 0;
+		var _iteratorNormalCompletion7 = true;
+		var _didIteratorError7 = false;
+		var _iteratorError7 = undefined;
+	
+		try {
+			for (var _iterator7 = surroundingFishies[Symbol.iterator](), _step7; !(_iteratorNormalCompletion7 = (_step7 = _iterator7.next()).done); _iteratorNormalCompletion7 = true) {
+				var friend = _step7.value;
+	
+				var position = new _Point2.default(fish.position.x, fish.position.y);
+				var dist = position.distance(friend.position);
+				if (dist > 0) {
+					sum.add(friend.velocity);
+					count++;
+				}
+			}
+		} catch (err) {
+			_didIteratorError7 = true;
+			_iteratorError7 = err;
+		} finally {
+			try {
+				if (!_iteratorNormalCompletion7 && _iterator7.return) {
+					_iterator7.return();
+				}
+			} finally {
+				if (_didIteratorError7) {
+					throw _iteratorError7;
+				}
+			}
+		}
+	
+		if (count === 0) return new _Point2.default();
+	
+		sum.normalize();
+		sum.divide(maxSpeed);
+		var steer = sum.subtract(fish.velocity);
+		steer.limit(maxForce);
+		return steer;
 	}
 	
+	// calcuates the cohesion velocity based on surrounding fish
+	function cohesion(fish, surroundingFishies) {
+		var sum = new _Point2.default();
+		var count = 0;
+		var _iteratorNormalCompletion8 = true;
+		var _didIteratorError8 = false;
+		var _iteratorError8 = undefined;
+	
+		try {
+			for (var _iterator8 = surroundingFishies[Symbol.iterator](), _step8; !(_iteratorNormalCompletion8 = (_step8 = _iterator8.next()).done); _iteratorNormalCompletion8 = true) {
+				var friend = _step8.value;
+	
+				var position = new _Point2.default(fish.position.x, fish.position.y);
+				var dist = position.distance(friend.position);
+				if (dist > 0) {
+					sum.add(friend.position);
+					count++;
+				}
+			}
+		} catch (err) {
+			_didIteratorError8 = true;
+			_iteratorError8 = err;
+		} finally {
+			try {
+				if (!_iteratorNormalCompletion8 && _iterator8.return) {
+					_iterator8.return();
+				}
+			} finally {
+				if (_didIteratorError8) {
+					throw _iteratorError8;
+				}
+			}
+		}
+	
+		if (count === 0) return new _Point2.default();
+		sum.divide(count);
+		return seek(fish, sum);
+	}
+	
+	// calculates and applies a steering force towards a target
+	function seek(fish, target) {
+		var desired = target.subtract(fish.position);
+		desired.normalize();
+		desired.multiply(maxSpeed);
+		var steer = desired.subtract(fish.velocity);
+		steer.limit(maxForce);
+		return steer;
+	}
+	
+	// ended up being unused but could be useful
+	function getSurroundingZones(zone) {
+		var surroundingZones = [(0, _lodash4.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] - 1) + ']', null), // TL
+		(0, _lodash4.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] + 0) + ']', null), // ML
+		(0, _lodash4.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] + 1) + ']', null), // BL
+		(0, _lodash4.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] - 1) + ']', null), // TM
+		(0, _lodash4.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] + 0) + ']', null), // MM
+		(0, _lodash4.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] + 1) + ']', null), // BM
+		(0, _lodash4.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] - 1) + ']', null), // TR
+		(0, _lodash4.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] + 0) + ']', null), // MR
+		(0, _lodash4.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] + 1) + ']', null)];
+		// BR
+		return surroundingZones.filter(function (zone) {
+			return zone !== null;
+		});
+	}
+	
+	// gets surrounding fish from a quadrant
+	function getSurroundingFishies(zone) {
+		return [].concat(_toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] - 1) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] + 0) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] + 1) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] - 1) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] + 0) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] + 1) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] - 1) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] + 0) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] + 1) + '].children', [])));
+	}
+	
+	// BR
 	init();
 
 /***/ },
@@ -43396,6 +43600,15 @@
 				if (norm !== 0) {
 					this.x = scale * this.x / norm;
 					this.y = scale * this.y / norm;
+				}
+				return this;
+			}
+		}, {
+			key: 'limit',
+			value: function limit(max) {
+				if (this.x * this.x + this.y * this.y > max * max) {
+					this.normalize();
+					this.multiply(max);
 				}
 				return this;
 			}
