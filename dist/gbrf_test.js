@@ -85,13 +85,15 @@
 	
 	var offscreen = 35; //px;
 	var desiredSeparation = 35; //px
-	var zoneSize = 100; // px
+	var zoneSize = 150; // px
 	
-	var maxSpeed = 6;
-	var maxForce = 0.3;
-	var seperationMultiple = 50;
-	var cohesionMultiple = 1;
-	var alignmentMultiple = 0.5;
+	var maxSpeed = 8;
+	var maxForce = 0.15;
+	var seperationMultiple = 30;
+	var cohesionMultiple = 1.2;
+	var alignmentMultiple = 0.4;
+	var rotationEase = 15; // lower is faster
+	var globalSpeed = 0.5;
 	
 	var showZones = false;
 	var zoneCalcThrottle = 8; // every nth frame
@@ -220,7 +222,7 @@
 			var fishSprite = new _pixi.Sprite();
 			fishSprite.key = i;
 			fishSprite.texture = fishSprites[i % fishSprites.length].texture;
-			fishSprite.anchor = new _Point2.default(0.3, 0.5);
+			fishSprite.anchor = new _Point2.default(0.15, 0.5);
 			fishSprite.position.x = Math.random() * width;
 			fishSprite.position.y = Math.random() * height;
 			fishSprite.rotation = Math.random() * Math.PI * 2;
@@ -418,8 +420,14 @@
 				i++;
 	
 				// keep in bounds
-				if (fish.position.x < -offscreen) fish.position.x = width + offscreen;
-				if (fish.position.x > width + offscreen) fish.position.x = -offscreen;
+				if (fish.position.x < -offscreen) {
+					fish.position.x = width + offscreen;
+					fish.position.y = Math.round(Math.random() * height);
+				}
+				if (fish.position.x > width + offscreen) {
+					fish.position.x = -offscreen;
+					fish.position.y = Math.round(Math.random() * height);
+				}
 				if (fish.position.y < -offscreen) {
 					fish.position.y = height + offscreen - (-offscreen - fish.position.y);
 					fish.position.x = Math.round(Math.random() * width); // randomize x position
@@ -450,8 +458,8 @@
 				fish.velocity.limit(maxSpeed);
 	
 				// reposition fish
-				fish.position.x += fish.velocity.x;
-				fish.position.y += fish.velocity.y;
+				fish.position.x += fish.velocity.x * globalSpeed;
+				fish.position.y += fish.velocity.y * globalSpeed;
 	
 				// reset acceleration each frame
 				fish.acceleration.multiply(0);
@@ -462,7 +470,7 @@
 				var diff = fish.aimRotation - fish.rotation;
 				if (diff > PI) diff -= PI2;
 				if (diff < -PI) diff += PI2;
-				fish.rotation += diff / 5;
+				fish.rotation += diff / rotationEase;
 	
 				// keep upright
 				var absRotation = fish.rotation % PI2;

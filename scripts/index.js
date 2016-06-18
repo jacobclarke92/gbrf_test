@@ -11,13 +11,15 @@ const fishScale = 0.25;
 
 const offscreen = 35; //px;
 const desiredSeparation = 35; //px
-const zoneSize = 100; // px
+const zoneSize = 150; // px
 
-const maxSpeed = 6;
-const maxForce = 0.3;
-const seperationMultiple = 50;
-const cohesionMultiple = 1;
-const alignmentMultiple = 0.5;
+const maxSpeed = 8;
+const maxForce = 0.15;
+const seperationMultiple = 30;
+const cohesionMultiple = 1.2;
+const alignmentMultiple = 0.4;
+const rotationEase = 15; // lower is faster
+const globalSpeed = 0.5;
 
 const showZones = false;
 const zoneCalcThrottle = 8; // every nth frame
@@ -123,7 +125,7 @@ function initScene() {
 		const fishSprite = new Sprite();
 		fishSprite.key = i;
 		fishSprite.texture = fishSprites[i%fishSprites.length].texture;
-		fishSprite.anchor = new Point(0.3, 0.5);
+		fishSprite.anchor = new Point(0.15, 0.5);
 		fishSprite.position.x = Math.random()*width;
 		fishSprite.position.y = Math.random()*height;
 		fishSprite.rotation = Math.random()*Math.PI*2;
@@ -233,8 +235,14 @@ function animate() {
 		i++;
 
 		// keep in bounds
-		if(fish.position.x < -offscreen) fish.position.x = width + offscreen;
-		if(fish.position.x > width+offscreen) fish.position.x = -offscreen;
+		if(fish.position.x < -offscreen) {
+			fish.position.x = width + offscreen;
+			fish.position.y = Math.round(Math.random()*height);
+		}
+		if(fish.position.x > width+offscreen) {
+			fish.position.x = -offscreen;
+			fish.position.y = Math.round(Math.random()*height);
+		}
 		if(fish.position.y < -offscreen) {
 			fish.position.y = height + offscreen - (-offscreen - fish.position.y);
 			fish.position.x = Math.round(Math.random()*width); // randomize x position
@@ -265,8 +273,8 @@ function animate() {
 		fish.velocity.limit(maxSpeed);
 
 		// reposition fish
-		fish.position.x += fish.velocity.x;
-		fish.position.y += fish.velocity.y;
+		fish.position.x += fish.velocity.x * globalSpeed;
+		fish.position.y += fish.velocity.y * globalSpeed;
 
 		// reset acceleration each frame
 		fish.acceleration.multiply(0);
@@ -277,7 +285,7 @@ function animate() {
 		let diff = fish.aimRotation - fish.rotation;
 		if(diff > PI) diff -= PI2;
 		if(diff < -PI) diff += PI2;
-		fish.rotation += diff/5;
+		fish.rotation += diff/rotationEase;
 
 		// keep upright
 		const absRotation = (fish.rotation%PI2);
