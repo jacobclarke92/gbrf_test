@@ -239,7 +239,7 @@ function animate() {
 
 function getSurroundingZoneFishies(zone) {
 	return [
-		..._get(zones, '['+zone[0]+']['+zone[1]+'].children', []),
+		..._get(zones, '['+(zone[0]+0)+']['+(zone[1]+0)+'].children', []), // MM
 		..._get(zones, '['+(zone[0]+0)+']['+(zone[1]-1)+'].children', []), // TM
 		..._get(zones, '['+(zone[0]+1)+']['+(zone[1]-1)+'].children', []), // TR
 		..._get(zones, '['+(zone[0]+1)+']['+(zone[1]+0)+'].children', []), // MR
