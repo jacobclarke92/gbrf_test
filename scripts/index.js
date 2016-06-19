@@ -19,8 +19,8 @@ const vars = {
 	seperationMultiple: 30,
 	cohesionMultiple: 1.2,
 	alignmentMultiple: 0.4,
-	rotationEase: 15, // lower is less
-	globalSpeed: 0.5,
+	globalSpeedMultiple: 0.5,
+	rotationEase: 3, // lower is less
 	
 	zoneSize: 100,
 	showZones: false,
@@ -40,6 +40,9 @@ let resolution = null;
 let scroll = 0;
 let scrollOffset = 0;
 
+let $currentFocus = null;
+let currentFocusBounds = null;
+
 const PI = Math.PI;
 const PI2 = PI*2;
 
@@ -50,39 +53,43 @@ const zones = [];
 let zoneCalcThrottleCount = vars.zoneCalcThrottle;
 const zonesContainer = new Container();
 const zonesGraphic = new Graphics();
+const velocitiesGraphic = new Graphics();
 zonesContainer.addChild(zonesGraphic);
+zonesContainer.addChild(velocitiesGraphic);
 
 export function init() {
 	$(document).ready(() => {
 
+		// init dat GUI
 		gui = new dat.GUI();
 		const guiGeneral = gui.addFolder('General');
 		guiGeneral.add(vars, 'bgColor');
-		guiGeneral.add(vars, 'numFishies', 1, 1000);
+		guiGeneral.add(vars, 'numFishies', 1, 750).step(1);
 		guiGeneral.add(vars, 'fishScale', 0.05, 2);
-		guiGeneral.add(vars, 'globalSpeed', 0.01, 10);
+		guiGeneral.add(vars, 'offscreen', 0, 500);
 		const guiFlocking = gui.addFolder('Flocking');
-		guiFlocking.add(vars, 'desiredSeparation', 0, 500);
-		guiFlocking.add(vars, 'offscreen', 0, 500);
 		guiFlocking.add(vars, 'maxSpeed', 0.5, 50);
 		guiFlocking.add(vars, 'maxForce', 0.05, 5);
+		guiFlocking.add(vars, 'desiredSeparation', 0, 500);
 		guiFlocking.add(vars, 'seperationMultiple', 1, 100);
 		guiFlocking.add(vars, 'cohesionMultiple', 0.05, 10);
-		guiFlocking.add(vars, 'alignmentMultiple', 0.05, 10);
+		guiFlocking.add(vars, 'alignmentMultiple', 0.01, 3);
+		guiFlocking.add(vars, 'globalSpeedMultiple', 0.01, 10);
 		guiFlocking.add(vars, 'rotationEase', 1, 100);
 		const guiZones = gui.addFolder('Zoning');
 		guiZones.add(vars, 'showZones');
 		guiZones.add(vars, 'zoneSize', 10, 1000);
 		guiZones.add(vars, 'zoneCalcThrottle', 1, 60);
 
-		$fishiesContainer = $('#fishies_bg');
 
+		// init renderer, stage, etc.
+		$fishiesContainer = $('#fishies_bg');
 		width = $fishiesContainer.width();
 		height = $fishiesContainer.height();
 		resolution = window.devicePixelRatio || 1;
 
-		renderer = new PIXI.autoDetectRenderer(width, height, {
-		// renderer = new PIXI.CanvasRenderer(width, height, {
+		// renderer = new PIXI.autoDetectRenderer(width, height, {
+		renderer = new PIXI.CanvasRenderer(width, height, {
 			resolution, 
 			transparent: false,
 			backgroundColor: eval('0x'+vars.bgColor.substring(1)),
@@ -91,10 +98,27 @@ export function init() {
 		$fishiesContainer[0].appendChild(canvas);
 		stage = new Container();
 
+
+		// init window event bindings
 		$(window).resize(rendererResize);
 		$(window).on('focus', () => rendererResize());
 		rendererResize();
 
+		$(document).scroll(updateScroll);
+		updateScroll();
+
+
+		// init focus state event binding
+		$('[data-fish-focus]').focus(function() {
+			$currentFocus = $(this);
+			updateCurrentFocusBounds();
+		});
+		$('[data-fish-focus]').blur(function() {
+			$currentFocus = null;
+			currentFocusBounds = null;
+		});
+
+		// init asset loader
 		Loader.on('progress', handleLoaderProgress);
 		Loader.once('complete', handleLoaderComplete);
 
@@ -104,17 +128,24 @@ export function init() {
 
 		Loader.load();
 
-		$(document).scroll(updateScroll);
-		updateScroll();
-
 	});
 }
 
+// thottles scroll events to 60fps
 const updateScroll = _throttle(() => {
 	const newScroll = $(document).scrollTop();
 	scrollOffset += scroll-newScroll;
 	scroll = newScroll;
+	updateCurrentFocusBounds();
 }, 1000/60);
+
+function updateCurrentFocusBounds() {
+	if(!$currentFocus) return;
+	const offset = $currentFocus.offset();
+	currentFocusBounds = {left: offset.left, top: offset.top - scroll};
+	currentFocusBounds.right = currentFocusBounds.left + $currentFocus.width();
+	currentFocusBounds.bottom = currentFocusBounds.top + $currentFocus.height();
+}
 
 function rendererResize() {
 	width = $fishiesContainer.width();
@@ -147,22 +178,7 @@ function initScene() {
 
 	// generate all fish sprites from the loaded images
 	for(let i=0; i < vars.numFishies; i ++) {
-		const fishSprite = new Sprite();
-		fishSprite.key = i;
-		fishSprite.texture = fishSprites[i%fishSprites.length].texture;
-		fishSprite.anchor = new Point(0.15, 0.5);
-		fishSprite.position.x = Math.random()*width;
-		fishSprite.position.y = Math.random()*height;
-		fishSprite.rotation = Math.random()*Math.PI*2;
-		fishSprite.scale = new Point(-vars.fishScale, vars.fishScale);
-		fishSprite.acceleration = new Point();
-		fishSprite.velocity = new Point(Math.cos(fishSprite.rotation), Math.sin(fishSprite.rotation));
-		if(vars.showZones) {
-			fishSprite.buttonMode = true;
-			fishSprite.interactive = true;
-			fishSprite.on('mouseover', () => fishSprite.over = true);
-			fishSprite.on('mouseout', () => fishSprite.over = false);
-		}
+		const fishSprite = initFish(i);
 		stage.addChild(fishSprite);
 		fishies.push(fishSprite);
 	}
@@ -171,11 +187,45 @@ function initScene() {
 
 }
 
+function initFish(i) {
+	const fishSprite = new Sprite();
+	fishSprite.key = i;
+	fishSprite.texture = fishSprites[i%fishSprites.length].texture;
+	fishSprite.anchor = new Point(0.15, 0.5);
+	fishSprite.position.x = Math.random()*width;
+	fishSprite.position.y = Math.random()*height;
+	fishSprite.rotation = Math.random()*Math.PI*2;
+	fishSprite.scale = new Point(-vars.fishScale, vars.fishScale);
+	fishSprite.acceleration = new Point();
+	fishSprite.velocity = new Point(Math.cos(fishSprite.rotation), Math.sin(fishSprite.rotation));
+	fishSprite.buttonMode = true;
+	fishSprite.interactive = true;
+	fishSprite.on('mouseover', () => fishSprite.over = true);
+	fishSprite.on('mouseout', () => fishSprite.over = false);
+	return fishSprite;
+}
+
 function animate() {
 
 	// calculate zones
 	if(++zoneCalcThrottleCount >= vars.zoneCalcThrottle) {
 		zoneCalcThrottleCount = 0;
+
+		// maintain correct amount of fish
+		const excess = fishies.length - vars.numFishies; 
+		if(excess > 0) {
+			for(let i=0; i<excess; i++) {
+				const fishSprite = fishies[fishies.length-1-excess+i];
+				stage.removeChild(fishSprite);
+				fishies.splice(fishies.indexOf(fishSprite), 1);
+			}
+		}else if(excess < 0) {
+			for(let i=0; i<Math.abs(excess); i++) {
+				const fishSprite = initFish(fishies.length+i);
+				stage.addChild(fishSprite);
+				fishies.push(fishSprite);
+			}
+		}
 
 		// reset debug labels etc.
 		(zonesContainer.labels || []).map(label => zonesContainer.removeChild(label));
@@ -232,25 +282,27 @@ function animate() {
 					zonesContainer.labels.push(pt);
 				}
 			}
+		}
 
-			// show neighbouring fish if hovering
-			if(vars.showZones) {
-				for(let fish of fishies) {
-					if(fish.over) {
-						const surroundingFishies = getSurroundingFishies(fish.zone);
-						const nearGraphic = new Graphics();
-						nearGraphic.lineStyle(1, 0xFFFFFF, 0.5);
-						for(let friend of surroundingFishies) {
-							nearGraphic.moveTo(fish.position.x, fish.position.y);
-							nearGraphic.lineTo(friend.position.x, friend.position.y);
-						}
-						zonesContainer.addChild(nearGraphic);
-						zonesContainer.labels.push(nearGraphic);
+		// show neighbouring fish if hovering
+		if(vars.showZones) {
+			for(let fish of fishies) {
+				if(fish.over) {
+					const surroundingFishies = getSurroundingFishies(fish.zone);
+					const nearGraphic = new Graphics();
+					nearGraphic.lineStyle(1, 0xFFFFFF, 0.5);
+					for(let friend of surroundingFishies) {
+						nearGraphic.moveTo(fish.position.x, fish.position.y);
+						nearGraphic.lineTo(friend.position.x, friend.position.y);
 					}
+					zonesContainer.addChild(nearGraphic);
+					zonesContainer.labels.push(nearGraphic);
 				}
 			}
 		}
 	}
+
+	if(vars.showZones) velocitiesGraphic.clear();
 
 	// iterate over the fishies!
 	for(let fish of fishies) {
@@ -280,6 +332,7 @@ function animate() {
 		const seperationForce = seperation(fish, surroundingFishies);
 		const cohesionForce = cohesion(fish, surroundingFishies);
 		const alignmentForce = alignment(fish, surroundingFishies);
+		// const currentFocusForce = focusCohesion(fish, )
 
 		// weight each force
 		seperationForce.multiply(vars.seperationMultiple);
@@ -292,8 +345,8 @@ function animate() {
 		fish.velocity.limit(vars.maxSpeed);
 
 		// reposition fish
-		fish.position.x += fish.velocity.x * vars.globalSpeed;
-		fish.position.y += fish.velocity.y * vars.globalSpeed;
+		fish.position.x += fish.velocity.x * vars.globalSpeedMultiple;
+		fish.position.y += fish.velocity.y * vars.globalSpeedMultiple;
 
 		// reset acceleration each frame
 		fish.acceleration.multiply(0);
@@ -309,6 +362,23 @@ function animate() {
 		// keep upright
 		const absRotation = (fish.rotation%PI2);
 		fish.scale.y = (absRotation > PI/2 && absRotation < PI*1.5) ? -vars.fishScale : vars.fishScale;
+
+		if(vars.showZones) {
+			const seperationAngle = Math.atan2(seperationForce.y, seperationForce.x);
+			const cohesionAngle = Math.atan2(cohesionForce.y, cohesionForce.x);
+			const alignmentAngle = Math.atan2(alignmentForce.y, alignmentForce.x);
+			if(seperationForce.x !== 0 && seperationForce.y !== 0) {
+				velocitiesGraphic.lineStyle(3, 0xFF0000, 0.5);
+				velocitiesGraphic.moveTo(fish.position.x, fish.position.y);
+				velocitiesGraphic.lineTo(fish.position.x + Math.cos(seperationAngle)*30, fish.position.y + Math.sin(seperationAngle)*30);
+			}
+			velocitiesGraphic.lineStyle(3, 0xe4c524, 1);
+			velocitiesGraphic.moveTo(fish.position.x, fish.position.y);
+			velocitiesGraphic.lineTo(fish.position.x + Math.cos(alignmentAngle)*30, fish.position.y + Math.sin(alignmentAngle)*30);
+			velocitiesGraphic.lineStyle(3, 0x00FF00, 0.5);
+			velocitiesGraphic.moveTo(fish.position.x, fish.position.y);
+			velocitiesGraphic.lineTo(fish.position.x + Math.cos(cohesionAngle)*30, fish.position.y + Math.sin(cohesionAngle)*30);
+		}
 
 	}
 	scrollOffset = 0;
@@ -346,7 +416,7 @@ function seperation(fish, surroundingFishies) {
 // calcuates the alignment velocity based on surrounding fish
 function alignment(fish, surroundingFishies = []) {
 	
-	// this steers fish towards the most densely packed quadrant rather than all surrounding quadrants
+	// uncommenting this steers fish towards the most densely packed quadrant rather than all surrounding quadrants
 	// const surroundingZones = getSurroundingZones(fish.zone);
 	// if(!surroundingZones.length) return new Point();
 	// surroundingZones.sort((a,b) => a.count > b.count ? -1 : (a.count < b.count ? 1 : 0));
