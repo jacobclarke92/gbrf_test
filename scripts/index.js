@@ -11,16 +11,17 @@ const vars = {
 	bgColor: '#175282',
 	numFishies: 100,
 	fishScale: 0.25,
-	desiredSeparation: 35, //px
+	desiredSeparation: 20, //px
 	offscreen: 35, //px
-	preferOwnSpecies: false,
+	preferOwnSpecies: true,
 
 	maxSpeed: 8,
 	maxForce: 0.15,
-	seperationMultiple: 30,
+	seperationMultiple: 60,
 	alignmentMultiple: 0.4,
-	cohesionMultiple: 1.2,
+	cohesionMultiple: 1.6,
 	focusCohesionMultiple: 6,
+	forwardMovementMultiple: 0.1,
 	globalSpeedMultiple: 0.5,
 	focusOscillationSpeed: 0.02,
 	rotationEase: 6, // lower is less
@@ -79,6 +80,7 @@ export function init() {
 		guiFlocking.add(vars, 'seperationMultiple', 1, 100);
 		guiFlocking.add(vars, 'alignmentMultiple', 0.01, 3);
 		guiFlocking.add(vars, 'cohesionMultiple', 0.05, 10);
+		guiFlocking.add(vars, 'forwardMovementMultiple', 0, 1);
 		guiFlocking.add(vars, 'focusCohesionMultiple', 0.05, 10);
 		guiFlocking.add(vars, 'globalSpeedMultiple', 0.01, 10);
 		guiFlocking.add(vars, 'focusOscillationSpeed', 0.001, 0.5);
@@ -205,7 +207,7 @@ function initFish(i) {
 	fishSprite.key = i;
 	fishSprite.type = i%fishSprites.length;
 	fishSprite.texture = fishSprites[i%fishSprites.length].texture;
-	fishSprite.anchor = new Point(0.15, 0.5);
+	fishSprite.anchor = new Point(0.25, 0.5);
 	fishSprite.position.x = Math.random()*width;
 	fishSprite.position.y = Math.random()*height;
 	fishSprite.rotation = Math.random()*Math.PI*2;
@@ -348,15 +350,23 @@ function animate() {
 		const cohesionForce = cohesion(fish, surroundingFishies);
 		const alignmentForce = alignment(fish, surroundingFishies);
 		const currentFocusForce = focusCohesion(fish);
+		const forwardMovementForce = new Point(Math.cos(fish.rotation), Math.sin(fish.rotation));
 
 		// weight each force
 		seperationForce.multiply(vars.seperationMultiple);
 		cohesionForce.multiply(vars.cohesionMultiple);
 		alignmentForce.multiply(vars.alignmentMultiple);
 		currentFocusForce.multiply(vars.focusCohesionMultiple);
+		forwardMovementForce.multiply(vars.forwardMovementMultiple);
 
 		// adjust fish velocity
-		fish.acceleration.add(seperationForce, cohesionForce, alignmentForce, currentFocusForce);
+		fish.acceleration.add(
+			seperationForce, 
+			cohesionForce, 
+			alignmentForce, 
+			currentFocusForce, 
+			forwardMovementForce
+		);
 		fish.velocity.add(fish.acceleration);
 		fish.velocity.limit(vars.maxSpeed);
 
