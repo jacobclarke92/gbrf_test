@@ -42,9 +42,17 @@
 				left: initial;
 			}
 
-			.dg.main, .dg.main .close-button {
+			.dg.main, 
+			.dg.main .save-row,
+			.dg.main .close-button {
 				width: 300px !important;
 				margin-right: 0 !important;
+			}
+			.dg.main .folder, .dg.main .folder ul {
+				margin-top: 0 !important;
+			}
+			.dg.main .save-row + .dg.main .folder {
+				margin-top: 27px !important;
 			}
 
 			input[data-fish-focus] {

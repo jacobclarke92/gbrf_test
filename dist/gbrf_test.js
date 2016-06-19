@@ -86,7 +86,7 @@
 	
 	var vars = {
 		bgColor: '#175282',
-		numFishies: 100,
+		numFishies: 80,
 		fishScale: 0.25,
 		showShark: true,
 		sharkScale: 0.5,
@@ -170,10 +170,28 @@
 	function init() {
 		(0, _jquery2.default)(document).ready(function () {
 	
+			// init renderer, stage, etc.
+			$fishiesContainer = (0, _jquery2.default)('#fishies_bg');
+			width = $fishiesContainer.width();
+			height = $fishiesContainer.height();
+			resolution = window.devicePixelRatio || 1;
+	
+			renderer = new _pixi2.default.autoDetectRenderer(width, height, {
+				// renderer = new PIXI.CanvasRenderer(width, height, {
+				resolution: resolution,
+				transparent: false,
+				backgroundColor: eval('0x' + vars.bgColor.substring(1))
+			});
+			canvas = renderer.view;
+			$fishiesContainer[0].appendChild(canvas);
+			stage = new _pixi.Container();
+	
 			// init dat GUI
 			gui = new _datGui2.default.GUI();
 			var guiGeneral = gui.addFolder('General');
-			guiGeneral.add(vars, 'bgColor');
+			guiGeneral.addColor(vars, 'bgColor').onChange(function (color) {
+				return renderer.backgroundColor = eval('0x' + color.substring(1));
+			});
 			guiGeneral.add(vars, 'offscreen', 0, 500);
 			var guiWater = gui.addFolder('Water');
 			guiWater.add(vars, 'waterEffect');
@@ -211,22 +229,7 @@
 			guiZones.add(vars, 'showZones');
 			guiZones.add(vars, 'zoneSize', 10, 1000);
 			guiZones.add(vars, 'zoneCalcThrottle', 1, 60);
-	
-			// init renderer, stage, etc.
-			$fishiesContainer = (0, _jquery2.default)('#fishies_bg');
-			width = $fishiesContainer.width();
-			height = $fishiesContainer.height();
-			resolution = window.devicePixelRatio || 1;
-	
-			renderer = new _pixi2.default.autoDetectRenderer(width, height, {
-				// renderer = new PIXI.CanvasRenderer(width, height, {
-				resolution: resolution,
-				transparent: false,
-				backgroundColor: eval('0x' + vars.bgColor.substring(1))
-			});
-			canvas = renderer.view;
-			$fishiesContainer[0].appendChild(canvas);
-			stage = new _pixi.Container();
+			gui.remember(vars);
 	
 			// init window event bindings
 			(0, _jquery2.default)(window).resize(rendererResize);
@@ -313,6 +316,7 @@
 		canvas.style.width = width + 'px';
 		canvas.style.height = height + 'px';
 		renderer.resize(width, height);
+		updateCurrentFocusBounds();
 	}
 	
 	function handleLoaderProgress(loader, resource) {
@@ -653,6 +657,9 @@
 					if (diff < -PI) diff += PI2;
 					shark.rotation += diff / vars.rotationEase;
 	
+					shark.scale.x = -vars.sharkScale;
+					shark.scale.y = vars.sharkScale;
+	
 					// wag tail
 					for (var _i3 = 0; _i3 < vars.bendPoints / 2; _i3++) {
 						shark.bendPoints[Math.floor(vars.bendPoints / 2 + _i3)].y = Math.cos(sharkTail) * Math.pow(vars.sharkTailMovement * _i3, 2);
@@ -753,6 +760,7 @@
 				// keep upright
 				var absRotation = _fish2.rotation % PI2;
 				_fish2.scale.y = absRotation > PI / 2 && absRotation < PI * 1.5 ? -vars.fishScale : vars.fishScale;
+				_fish2.scale.x = -vars.fishScale;
 	
 				// wag tail
 				for (var _i4 = 0; _i4 < vars.bendPoints / 2; _i4++) {

@@ -9,7 +9,7 @@ const fishFiles = ['fish1.png','fish2.png','fish3.png','fish4.png','fish5.png','
 
 const vars = {
 	bgColor: '#175282',
-	numFishies: 100,
+	numFishies: 80,
 	fishScale: 0.25,
 	showShark: true,
 	sharkScale: 0.5,
@@ -93,10 +93,27 @@ let focusOscillation = 0;
 export function init() {
 	$(document).ready(() => {
 
+		// init renderer, stage, etc.
+		$fishiesContainer = $('#fishies_bg');
+		width = $fishiesContainer.width();
+		height = $fishiesContainer.height();
+		resolution = window.devicePixelRatio || 1;
+
+		renderer = new PIXI.autoDetectRenderer(width, height, {
+		// renderer = new PIXI.CanvasRenderer(width, height, {
+			resolution, 
+			transparent: false,
+			backgroundColor: eval('0x'+vars.bgColor.substring(1)),
+		});
+		canvas = renderer.view;
+		$fishiesContainer[0].appendChild(canvas);
+		stage = new Container();
+
+
 		// init dat GUI
 		gui = new dat.GUI();
 		const guiGeneral = gui.addFolder('General');
-		guiGeneral.add(vars, 'bgColor');
+		guiGeneral.addColor(vars, 'bgColor').onChange(color => renderer.backgroundColor = eval('0x'+color.substring(1)));
 		guiGeneral.add(vars, 'offscreen', 0, 500);
 		const guiWater = gui.addFolder('Water');
 		guiWater.add(vars, 'waterEffect');
@@ -134,23 +151,7 @@ export function init() {
 		guiZones.add(vars, 'showZones');
 		guiZones.add(vars, 'zoneSize', 10, 1000);
 		guiZones.add(vars, 'zoneCalcThrottle', 1, 60);
-
-
-		// init renderer, stage, etc.
-		$fishiesContainer = $('#fishies_bg');
-		width = $fishiesContainer.width();
-		height = $fishiesContainer.height();
-		resolution = window.devicePixelRatio || 1;
-
-		renderer = new PIXI.autoDetectRenderer(width, height, {
-		// renderer = new PIXI.CanvasRenderer(width, height, {
-			resolution, 
-			transparent: false,
-			backgroundColor: eval('0x'+vars.bgColor.substring(1)),
-		});
-		canvas = renderer.view;
-		$fishiesContainer[0].appendChild(canvas);
-		stage = new Container();
+		gui.remember(vars);
 
 
 		// init window event bindings
@@ -217,6 +218,7 @@ function rendererResize() {
 	canvas.style.width = width + 'px';
 	canvas.style.height = height + 'px';
 	renderer.resize(width, height);
+	updateCurrentFocusBounds();
 }
 
 function handleLoaderProgress(loader, resource) {
@@ -453,6 +455,9 @@ function animate() {
 			if(diff < -PI) diff += PI2;
 			shark.rotation += diff/vars.rotationEase;
 
+			shark.scale.x = -vars.sharkScale;
+			shark.scale.y = vars.sharkScale;
+
 			// wag tail
 			for(let i=0; i<vars.bendPoints/2; i++) {
 				shark.bendPoints[Math.floor(vars.bendPoints/2 + i)].y = Math.cos(sharkTail)*Math.pow(vars.sharkTailMovement*i, 2);
@@ -541,6 +546,7 @@ function animate() {
 		// keep upright
 		const absRotation = (fish.rotation%PI2);
 		fish.scale.y = (absRotation > PI/2 && absRotation < PI*1.5) ? -vars.fishScale : vars.fishScale;
+		fish.scale.x = -vars.fishScale;
 
 		// wag tail
 		for(let i=0; i<vars.bendPoints/2; i++) {
