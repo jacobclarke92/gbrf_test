@@ -11,17 +11,31 @@ const vars = {
 	bgColor: '#175282',
 	numFishies: 100,
 	fishScale: 0.25,
+	showShark: true,
+	sharkScale: 0.5,
 	desiredSeparation: 20, //px
 	offscreen: 35, //px
 	preferOwnSpecies: true,
 
+	waterEffect: false,
+	waterIntensity: 30,
+	waterSpeed: 4,
+	bubbleProbability: 0.02,
+	bubbleSize: 0.06,
+
 	maxSpeed: 8,
 	maxForce: 0.15,
-	seperationMultiple: 60,
+	seperationMultiple: 40,
 	alignmentMultiple: 0.4,
 	cohesionMultiple: 1.6,
 	focusCohesionMultiple: 6,
-	forwardMovementMultiple: 0.1,
+	forwardMovementMultiple: 0.035,
+	sharkFearMultiple: 400,
+	sharkFearRadius: 250, //px
+	sharkHungerMultiple: 6,
+	sharkForwardMovementMultiple: 1,
+	sharkMaxSpeed: 12,
+
 	globalSpeedMultiple: 0.5,
 	focusOscillationSpeed: 0.02,
 	rotationEase: 6, // lower is less
@@ -37,6 +51,10 @@ let animating = true;
 let canvas = null;
 let renderer = null;
 let stage = null;
+let displacementSprite = null;
+let displacementFilter = null;
+let bubbleTexture = null;
+let sharkSprite = null;
 
 let width = null;
 let height = null;
@@ -52,9 +70,12 @@ const PI2 = PI*2;
 
 const fishSprites = [];
 const fishies = [];
+const bubbles = [];
+const sharks = [];
 const zones = [];
 
 let zoneCalcThrottleCount = vars.zoneCalcThrottle;
+const bubblesContainer = new Container();
 const zonesContainer = new Container();
 const zonesGraphic = new Graphics();
 const velocitiesGraphic = new Graphics();
@@ -69,22 +90,35 @@ export function init() {
 		gui = new dat.GUI();
 		const guiGeneral = gui.addFolder('General');
 		guiGeneral.add(vars, 'bgColor');
-		guiGeneral.add(vars, 'numFishies', 1, 750).step(1);
-		guiGeneral.add(vars, 'fishScale', 0.05, 2);
 		guiGeneral.add(vars, 'offscreen', 0, 500);
-		guiGeneral.add(vars, 'preferOwnSpecies');
-		const guiFlocking = gui.addFolder('Flocking');
+		const guiWater = gui.addFolder('Water');
+		guiWater.add(vars, 'waterEffect');
+		guiWater.add(vars, 'waterIntensity', 0, 200);
+		guiWater.add(vars, 'waterSpeed', 0, 10);
+		guiWater.add(vars, 'bubbleProbability', 0, 0.1);
+		guiWater.add(vars, 'bubbleSize', 0.01, 0.5);
+		const guiFlocking = gui.addFolder('Fishies');
+		guiFlocking.add(vars, 'preferOwnSpecies');
+		guiFlocking.add(vars, 'numFishies', 1, 750).step(1);
+		guiFlocking.add(vars, 'fishScale', 0.05, 2);
 		guiFlocking.add(vars, 'maxSpeed', 0.5, 50);
 		guiFlocking.add(vars, 'maxForce', 0.05, 5);
 		guiFlocking.add(vars, 'desiredSeparation', 0, 500);
 		guiFlocking.add(vars, 'seperationMultiple', 1, 100);
 		guiFlocking.add(vars, 'alignmentMultiple', 0.01, 3);
 		guiFlocking.add(vars, 'cohesionMultiple', 0.05, 10);
-		guiFlocking.add(vars, 'forwardMovementMultiple', 0, 1);
+		guiFlocking.add(vars, 'forwardMovementMultiple', 0, 0.1);
 		guiFlocking.add(vars, 'focusCohesionMultiple', 0.05, 10);
+		guiFlocking.add(vars, 'sharkFearMultiple', 0.05, 1000);
 		guiFlocking.add(vars, 'globalSpeedMultiple', 0.01, 10);
 		guiFlocking.add(vars, 'focusOscillationSpeed', 0.001, 0.5);
 		guiFlocking.add(vars, 'rotationEase', 1, 100);
+		const guiShark = gui.addFolder('Shark');
+		guiShark.add(vars, 'showShark');
+		guiShark.add(vars, 'sharkScale', 0.05, 2);
+		guiShark.add(vars, 'sharkHungerMultiple', 0.05, 6);
+		guiShark.add(vars, 'sharkForwardMovementMultiple', 0.05, 6);
+		guiShark.add(vars, 'sharkMaxSpeed', 0.05, 20);
 		const guiZones = gui.addFolder('Zoning');
 		guiZones.add(vars, 'showZones');
 		guiZones.add(vars, 'zoneSize', 10, 1000);
@@ -97,8 +131,8 @@ export function init() {
 		height = $fishiesContainer.height();
 		resolution = window.devicePixelRatio || 1;
 
-		// renderer = new PIXI.autoDetectRenderer(width, height, {
-		renderer = new PIXI.CanvasRenderer(width, height, {
+		renderer = new PIXI.autoDetectRenderer(width, height, {
+		// renderer = new PIXI.CanvasRenderer(width, height, {
 			resolution, 
 			transparent: false,
 			backgroundColor: eval('0x'+vars.bgColor.substring(1)),
@@ -134,6 +168,10 @@ export function init() {
 		for(let fish of fishFiles) {
 			Loader.add(fish.split('.')[0], 'assets/'+fish);
 		}
+
+		Loader.add('shark', 'assets/shark.png');
+		Loader.add('bubble', 'assets/bubble.png');
+		Loader.add('displacement_map', 'assets/displacement_map.png');
 
 		Loader.load();
 
@@ -179,9 +217,32 @@ function handleLoaderComplete(loader, resources) {
 	console.log('Loading Complete');
 
 	Object.keys(resources).map(key => {
-		const fishSprite = new Sprite(resources[key].texture);
-		fishSprite.key = key;
-		fishSprites.push(fishSprite);
+		switch(key) {
+			case 'bubble':
+				bubbleTexture = resources[key].texture;
+				break;
+			case 'displacement_map':
+				displacementSprite = new Sprite(resources[key].texture);
+				displacementFilter = new PIXI.filters.DisplacementFilter(displacementSprite);
+				displacementFilter.scale.x = displacementFilter.scale.y = vars.waterIntensity;
+				break;
+			case 'shark':
+				sharkSprite = new Sprite(resources[key].texture);	
+				sharkSprite.anchor = {x: 0.3, y: 0.8};			
+				sharkSprite.position.x = Math.random()*width;
+				sharkSprite.position.y = Math.random()*height;
+				sharkSprite.rotation = Math.random()*Math.PI*2;
+				sharkSprite.scale = new Point(-	vars.sharkScale, vars.sharkScale);
+				sharkSprite.acceleration = new Point();
+				sharkSprite.velocity = new Point(Math.cos(sharkSprite.rotation), Math.sin(sharkSprite.rotation));
+				sharks.push(sharkSprite);
+				break;
+			default:
+				const fishSprite = new Sprite(resources[key].texture);
+				fishSprite.key = key;
+				fishSprites.push(fishSprite);
+				break;
+		}
 	});
 
 	initScene();
@@ -190,6 +251,7 @@ function handleLoaderComplete(loader, resources) {
 function initScene() {
 
 	stage.addChild(zonesContainer);
+	stage.addChild(bubblesContainer);
 
 	// generate all fish sprites from the loaded images
 	for(let i=0; i < vars.numFishies; i ++) {
@@ -222,6 +284,10 @@ function initFish(i) {
 }
 
 function animate() {
+
+	displacementFilter.scale.x = displacementFilter.scale.y = vars.waterIntensity;
+	displacementSprite.anchor.x = displacementSprite.anchor.y += vars.waterSpeed/1000;
+	stage.filters = vars.waterEffect ? [displacementFilter] : null;
 
 	// calculate zones
 	if(++zoneCalcThrottleCount >= vars.zoneCalcThrottle) {
@@ -269,7 +335,7 @@ function animate() {
 				}
 
 				// update quadrant info
-				const children = fishies.filter(fish => 
+				const children = [...fishies, ...sharks].filter(fish => 
 					fish.position.x > zoneX && 
 					fish.position.x < zoneX+vars.zoneSize && 
 					fish.position.y > zoneY && 
@@ -318,6 +384,61 @@ function animate() {
 		}
 	}
 
+
+	for(let bubble of bubbles) {
+		bubble.position.y -= (height - bubble.position.y)/70;
+		bubble.position.y += scrollOffset;
+		if(bubble.position.y < -vars.offscreen) {
+			bubblesContainer.removeChild(bubble);
+			bubbles.splice(bubbles.indexOf(bubble), 1);
+		}
+	}
+
+	if(vars.showShark) {
+		if(stage.children.indexOf(sharkSprite) < 0) stage.addChild(sharkSprite);
+		for(let shark of sharks) {
+
+			// if(shark.position.x < -vars.offscreen) shark.position.x = width + vars.offscreen;
+			// if(shark.position.x > width+vars.offscreen) shark.position.x = -vars.offscreen;
+			// if(shark.position.y < -vars.offscreen) shark.position.y = height + vars.offscreen - (-vars.offscreen - shark.position.y);
+			// if(shark.position.y > height+vars.offscreen) shark.position.y = -vars.offscreen - (height+vars.offscreen - shark.position.y);
+
+			shark.position.y += scrollOffset;
+			
+			// const surroundingFishies = getSurroundingFishies(shark.zone);
+			const cohesionForce = cohesion(shark, fishies, true);
+			const forwardMovementForce = new Point(Math.cos(shark.rotation), Math.sin(shark.rotation));
+			cohesionForce.multiply(vars.sharkHungerMultiple);
+			forwardMovementForce.multiply(vars.sharkForwardMovementMultiple);
+			shark.acceleration.add(cohesionForce, forwardMovementForce);
+			shark.velocity.add(shark.acceleration);
+			shark.velocity.limit(vars.sharkMaxSpeed);
+
+			// reposition shark
+			shark.position.x += shark.velocity.x * vars.globalSpeedMultiple;
+			shark.position.y += shark.velocity.y * vars.globalSpeedMultiple;
+
+			// reset acceleration each frame
+			shark.acceleration.multiply(0);
+
+			// ease to correct rotation
+			shark.aimRotation = Math.atan2(shark.velocity.y, shark.velocity.x);
+			if(shark.aimRotation < 0) shark.aimRotation += PI2;
+			let diff = shark.aimRotation - shark.rotation;
+			if(diff > PI) diff -= PI2;
+			if(diff < -PI) diff += PI2;
+			shark.rotation += diff/vars.rotationEase;
+
+			// keep upright
+			const absRotation = (shark.rotation%PI2);
+			shark.scale.y = (absRotation > PI/2 && absRotation < PI*1.5) ? -vars.sharkScale : vars.sharkScale;
+
+		}
+	}else{
+		if(stage.children.indexOf(sharkSprite) > -1) stage.removeChild(sharkSprite);
+	}
+
+
 	if(vars.showZones) velocitiesGraphic.clear();
 	focusOscillation += vars.focusOscillationSpeed;
 
@@ -347,20 +468,23 @@ function animate() {
 		// calculate flocking forces
 		const surroundingFishies = getSurroundingFishies(fish.zone);
 		const seperationForce = seperation(fish, surroundingFishies);
+		const sharkFearForce = seperation(fish, sharks, true);
 		const cohesionForce = cohesion(fish, surroundingFishies);
 		const alignmentForce = alignment(fish, surroundingFishies);
 		const currentFocusForce = focusCohesion(fish);
 		const forwardMovementForce = new Point(Math.cos(fish.rotation), Math.sin(fish.rotation));
 
 		// weight each force
+		sharkFearForce.multiply(vars.sharkFearMultiple);
 		seperationForce.multiply(vars.seperationMultiple);
 		cohesionForce.multiply(vars.cohesionMultiple);
 		alignmentForce.multiply(vars.alignmentMultiple);
 		currentFocusForce.multiply(vars.focusCohesionMultiple);
-		forwardMovementForce.multiply(vars.forwardMovementMultiple);
+		forwardMovementForce.multiply(vars.forwardMovementMultiple*(surroundingFishies.length/4));
 
 		// adjust fish velocity
 		fish.acceleration.add(
+			sharkFearForce,
 			seperationForce, 
 			cohesionForce, 
 			alignmentForce, 
@@ -388,6 +512,16 @@ function animate() {
 		// keep upright
 		const absRotation = (fish.rotation%PI2);
 		fish.scale.y = (absRotation > PI/2 && absRotation < PI*1.5) ? -vars.fishScale : vars.fishScale;
+
+
+		// maybe blow a bubble
+		if(Math.random() < vars.bubbleProbability) {
+			const bubble = new Sprite(bubbleTexture);
+			bubble.scale.set(vars.bubbleSize);
+			bubble.position = {x: fish.position.x, y: fish.position.y};
+			bubblesContainer.addChild(bubble);
+			bubbles.push(bubble);
+		}
 
 		if(vars.showZones) {
 			const seperationAngle = Math.atan2(seperationForce.y, seperationForce.x);
@@ -433,13 +567,14 @@ function focusCohesion(fish) {
  */
 
 // calcuates the seperation velocity based on surrounding fish
-function seperation(fish, surroundingFishies) {
+function seperation(fish, surroundingFishies, isShark = false) {
+	const desiredSeparation = isShark ? vars.sharkFearRadius : vars.desiredSeparation;
 	const steer = new Point();
 	for(let friend of surroundingFishies) {
 		const position = new Point(fish.position.x, fish.position.y);
 		const dist = position.distance(friend.position);
 		let count = 0;
-		if(dist > 0 && dist < vars.desiredSeparation) {
+		if(dist > 0 && dist < desiredSeparation) {
 			count ++;
 			const diff = position.subtract(friend.position);
 			diff.normalize();
@@ -484,11 +619,11 @@ function alignment(fish, surroundingFishies = []) {
 }
 
 // calcuates the cohesion velocity based on surrounding fish
-function cohesion(fish, surroundingFishies) {
+function cohesion(fish, surroundingFishies, isShark = false) {
 	const sum = new Point();
 	let count = 0;
 	for(let friend of surroundingFishies) {
-		if(!vars.preferOwnSpecies || (vars.preferOwnSpecies && friend.type === fish.type)) {
+		if(isShark || !vars.preferOwnSpecies || (vars.preferOwnSpecies && friend.type === fish.type)) {
 			const position = new Point(fish.position.x, fish.position.y);
 			const dist = position.distance(friend.position);
 			if(dist > 0) {

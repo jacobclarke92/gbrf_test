@@ -88,17 +88,31 @@
 		bgColor: '#175282',
 		numFishies: 100,
 		fishScale: 0.25,
+		showShark: true,
+		sharkScale: 0.5,
 		desiredSeparation: 20, //px
 		offscreen: 35, //px
 		preferOwnSpecies: true,
 	
+		waterEffect: false,
+		waterIntensity: 30,
+		waterSpeed: 4,
+		bubbleProbability: 0.02,
+		bubbleSize: 0.06,
+	
 		maxSpeed: 8,
 		maxForce: 0.15,
-		seperationMultiple: 60,
+		seperationMultiple: 40,
 		alignmentMultiple: 0.4,
 		cohesionMultiple: 1.6,
 		focusCohesionMultiple: 6,
-		forwardMovementMultiple: 0.1,
+		forwardMovementMultiple: 0.035,
+		sharkFearMultiple: 400,
+		sharkFearRadius: 250, //px
+		sharkHungerMultiple: 6,
+		sharkForwardMovementMultiple: 1,
+		sharkMaxSpeed: 12,
+	
 		globalSpeedMultiple: 0.5,
 		focusOscillationSpeed: 0.02,
 		rotationEase: 6, // lower is less
@@ -114,6 +128,10 @@
 	var canvas = null;
 	var renderer = null;
 	var stage = null;
+	var displacementSprite = null;
+	var displacementFilter = null;
+	var bubbleTexture = null;
+	var sharkSprite = null;
 	
 	var width = null;
 	var height = null;
@@ -129,9 +147,12 @@
 	
 	var fishSprites = [];
 	var fishies = [];
+	var bubbles = [];
+	var sharks = [];
 	var zones = [];
 	
 	var zoneCalcThrottleCount = vars.zoneCalcThrottle;
+	var bubblesContainer = new _pixi.Container();
 	var zonesContainer = new _pixi.Container();
 	var zonesGraphic = new _pixi.Graphics();
 	var velocitiesGraphic = new _pixi.Graphics();
@@ -146,22 +167,35 @@
 			gui = new _datGui2.default.GUI();
 			var guiGeneral = gui.addFolder('General');
 			guiGeneral.add(vars, 'bgColor');
-			guiGeneral.add(vars, 'numFishies', 1, 750).step(1);
-			guiGeneral.add(vars, 'fishScale', 0.05, 2);
 			guiGeneral.add(vars, 'offscreen', 0, 500);
-			guiGeneral.add(vars, 'preferOwnSpecies');
-			var guiFlocking = gui.addFolder('Flocking');
+			var guiWater = gui.addFolder('Water');
+			guiWater.add(vars, 'waterEffect');
+			guiWater.add(vars, 'waterIntensity', 0, 200);
+			guiWater.add(vars, 'waterSpeed', 0, 10);
+			guiWater.add(vars, 'bubbleProbability', 0, 0.1);
+			guiWater.add(vars, 'bubbleSize', 0.01, 0.5);
+			var guiFlocking = gui.addFolder('Fishies');
+			guiFlocking.add(vars, 'preferOwnSpecies');
+			guiFlocking.add(vars, 'numFishies', 1, 750).step(1);
+			guiFlocking.add(vars, 'fishScale', 0.05, 2);
 			guiFlocking.add(vars, 'maxSpeed', 0.5, 50);
 			guiFlocking.add(vars, 'maxForce', 0.05, 5);
 			guiFlocking.add(vars, 'desiredSeparation', 0, 500);
 			guiFlocking.add(vars, 'seperationMultiple', 1, 100);
 			guiFlocking.add(vars, 'alignmentMultiple', 0.01, 3);
 			guiFlocking.add(vars, 'cohesionMultiple', 0.05, 10);
-			guiFlocking.add(vars, 'forwardMovementMultiple', 0, 1);
+			guiFlocking.add(vars, 'forwardMovementMultiple', 0, 0.1);
 			guiFlocking.add(vars, 'focusCohesionMultiple', 0.05, 10);
+			guiFlocking.add(vars, 'sharkFearMultiple', 0.05, 1000);
 			guiFlocking.add(vars, 'globalSpeedMultiple', 0.01, 10);
 			guiFlocking.add(vars, 'focusOscillationSpeed', 0.001, 0.5);
 			guiFlocking.add(vars, 'rotationEase', 1, 100);
+			var guiShark = gui.addFolder('Shark');
+			guiShark.add(vars, 'showShark');
+			guiShark.add(vars, 'sharkScale', 0.05, 2);
+			guiShark.add(vars, 'sharkHungerMultiple', 0.05, 6);
+			guiShark.add(vars, 'sharkForwardMovementMultiple', 0.05, 6);
+			guiShark.add(vars, 'sharkMaxSpeed', 0.05, 20);
 			var guiZones = gui.addFolder('Zoning');
 			guiZones.add(vars, 'showZones');
 			guiZones.add(vars, 'zoneSize', 10, 1000);
@@ -173,8 +207,8 @@
 			height = $fishiesContainer.height();
 			resolution = window.devicePixelRatio || 1;
 	
-			// renderer = new PIXI.autoDetectRenderer(width, height, {
-			renderer = new _pixi2.default.CanvasRenderer(width, height, {
+			renderer = new _pixi2.default.autoDetectRenderer(width, height, {
+				// renderer = new PIXI.CanvasRenderer(width, height, {
 				resolution: resolution,
 				transparent: false,
 				backgroundColor: eval('0x' + vars.bgColor.substring(1))
@@ -232,6 +266,10 @@
 				}
 			}
 	
+			_pixi.loader.add('shark', 'assets/shark.png');
+			_pixi.loader.add('bubble', 'assets/bubble.png');
+			_pixi.loader.add('displacement_map', 'assets/displacement_map.png');
+	
 			_pixi.loader.load();
 		});
 	}
@@ -275,9 +313,32 @@
 		console.log('Loading Complete');
 	
 		Object.keys(resources).map(function (key) {
-			var fishSprite = new _pixi.Sprite(resources[key].texture);
-			fishSprite.key = key;
-			fishSprites.push(fishSprite);
+			switch (key) {
+				case 'bubble':
+					bubbleTexture = resources[key].texture;
+					break;
+				case 'displacement_map':
+					displacementSprite = new _pixi.Sprite(resources[key].texture);
+					displacementFilter = new _pixi2.default.filters.DisplacementFilter(displacementSprite);
+					displacementFilter.scale.x = displacementFilter.scale.y = vars.waterIntensity;
+					break;
+				case 'shark':
+					sharkSprite = new _pixi.Sprite(resources[key].texture);
+					sharkSprite.anchor = { x: 0.3, y: 0.8 };
+					sharkSprite.position.x = Math.random() * width;
+					sharkSprite.position.y = Math.random() * height;
+					sharkSprite.rotation = Math.random() * Math.PI * 2;
+					sharkSprite.scale = new _Point2.default(-vars.sharkScale, vars.sharkScale);
+					sharkSprite.acceleration = new _Point2.default();
+					sharkSprite.velocity = new _Point2.default(Math.cos(sharkSprite.rotation), Math.sin(sharkSprite.rotation));
+					sharks.push(sharkSprite);
+					break;
+				default:
+					var fishSprite = new _pixi.Sprite(resources[key].texture);
+					fishSprite.key = key;
+					fishSprites.push(fishSprite);
+					break;
+			}
 		});
 	
 		initScene();
@@ -286,6 +347,7 @@
 	function initScene() {
 	
 		stage.addChild(zonesContainer);
+		stage.addChild(bubblesContainer);
 	
 		// generate all fish sprites from the loaded images
 		for (var i = 0; i < vars.numFishies; i++) {
@@ -321,6 +383,10 @@
 	}
 	
 	function animate() {
+	
+		displacementFilter.scale.x = displacementFilter.scale.y = vars.waterIntensity;
+		displacementSprite.anchor.x = displacementSprite.anchor.y += vars.waterSpeed / 1000;
+		stage.filters = vars.waterEffect ? [displacementFilter] : null;
 	
 		// calculate zones
 		if (++zoneCalcThrottleCount >= vars.zoneCalcThrottle) {
@@ -370,7 +436,7 @@
 					}
 	
 					// update quadrant info
-					var children = fishies.filter(function (fish) {
+					var children = [].concat(fishies, sharks).filter(function (fish) {
 						return fish.position.x > zoneX && fish.position.x < zoneX + vars.zoneSize && fish.position.y > zoneY && fish.position.y < zoneY + vars.zoneSize;
 					});
 					var count = children.length;
@@ -491,17 +557,111 @@
 			}
 		}
 	
-		if (vars.showZones) velocitiesGraphic.clear();
-		focusOscillation += vars.focusOscillationSpeed;
-	
-		// iterate over the fishies!
 		var _iteratorNormalCompletion5 = true;
 		var _didIteratorError5 = false;
 		var _iteratorError5 = undefined;
 	
 		try {
-			for (var _iterator5 = fishies[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
-				var _fish2 = _step5.value;
+			for (var _iterator5 = bubbles[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
+				var bubble = _step5.value;
+	
+				bubble.position.y -= (height - bubble.position.y) / 70;
+				bubble.position.y += scrollOffset;
+				if (bubble.position.y < -vars.offscreen) {
+					bubblesContainer.removeChild(bubble);
+					bubbles.splice(bubbles.indexOf(bubble), 1);
+				}
+			}
+		} catch (err) {
+			_didIteratorError5 = true;
+			_iteratorError5 = err;
+		} finally {
+			try {
+				if (!_iteratorNormalCompletion5 && _iterator5.return) {
+					_iterator5.return();
+				}
+			} finally {
+				if (_didIteratorError5) {
+					throw _iteratorError5;
+				}
+			}
+		}
+	
+		if (vars.showShark) {
+			if (stage.children.indexOf(sharkSprite) < 0) stage.addChild(sharkSprite);
+			var _iteratorNormalCompletion6 = true;
+			var _didIteratorError6 = false;
+			var _iteratorError6 = undefined;
+	
+			try {
+				for (var _iterator6 = sharks[Symbol.iterator](), _step6; !(_iteratorNormalCompletion6 = (_step6 = _iterator6.next()).done); _iteratorNormalCompletion6 = true) {
+					var shark = _step6.value;
+	
+	
+					// if(shark.position.x < -vars.offscreen) shark.position.x = width + vars.offscreen;
+					// if(shark.position.x > width+vars.offscreen) shark.position.x = -vars.offscreen;
+					// if(shark.position.y < -vars.offscreen) shark.position.y = height + vars.offscreen - (-vars.offscreen - shark.position.y);
+					// if(shark.position.y > height+vars.offscreen) shark.position.y = -vars.offscreen - (height+vars.offscreen - shark.position.y);
+	
+					shark.position.y += scrollOffset;
+	
+					// const surroundingFishies = getSurroundingFishies(shark.zone);
+					var cohesionForce = cohesion(shark, fishies, true);
+					var forwardMovementForce = new _Point2.default(Math.cos(shark.rotation), Math.sin(shark.rotation));
+					cohesionForce.multiply(vars.sharkHungerMultiple);
+					forwardMovementForce.multiply(vars.sharkForwardMovementMultiple);
+					shark.acceleration.add(cohesionForce, forwardMovementForce);
+					shark.velocity.add(shark.acceleration);
+					shark.velocity.limit(vars.sharkMaxSpeed);
+	
+					// reposition shark
+					shark.position.x += shark.velocity.x * vars.globalSpeedMultiple;
+					shark.position.y += shark.velocity.y * vars.globalSpeedMultiple;
+	
+					// reset acceleration each frame
+					shark.acceleration.multiply(0);
+	
+					// ease to correct rotation
+					shark.aimRotation = Math.atan2(shark.velocity.y, shark.velocity.x);
+					if (shark.aimRotation < 0) shark.aimRotation += PI2;
+					var diff = shark.aimRotation - shark.rotation;
+					if (diff > PI) diff -= PI2;
+					if (diff < -PI) diff += PI2;
+					shark.rotation += diff / vars.rotationEase;
+	
+					// keep upright
+					var absRotation = shark.rotation % PI2;
+					shark.scale.y = absRotation > PI / 2 && absRotation < PI * 1.5 ? -vars.sharkScale : vars.sharkScale;
+				}
+			} catch (err) {
+				_didIteratorError6 = true;
+				_iteratorError6 = err;
+			} finally {
+				try {
+					if (!_iteratorNormalCompletion6 && _iterator6.return) {
+						_iterator6.return();
+					}
+				} finally {
+					if (_didIteratorError6) {
+						throw _iteratorError6;
+					}
+				}
+			}
+		} else {
+			if (stage.children.indexOf(sharkSprite) > -1) stage.removeChild(sharkSprite);
+		}
+	
+		if (vars.showZones) velocitiesGraphic.clear();
+		focusOscillation += vars.focusOscillationSpeed;
+	
+		// iterate over the fishies!
+		var _iteratorNormalCompletion7 = true;
+		var _didIteratorError7 = false;
+		var _iteratorError7 = undefined;
+	
+		try {
+			for (var _iterator7 = fishies[Symbol.iterator](), _step7; !(_iteratorNormalCompletion7 = (_step7 = _iterator7.next()).done); _iteratorNormalCompletion7 = true) {
+				var _fish2 = _step7.value;
 	
 	
 				// keep in bounds
@@ -527,20 +687,22 @@
 				// calculate flocking forces
 				var _surroundingFishies = getSurroundingFishies(_fish2.zone);
 				var seperationForce = seperation(_fish2, _surroundingFishies);
-				var cohesionForce = cohesion(_fish2, _surroundingFishies);
+				var sharkFearForce = seperation(_fish2, sharks, true);
+				var _cohesionForce = cohesion(_fish2, _surroundingFishies);
 				var alignmentForce = alignment(_fish2, _surroundingFishies);
 				var currentFocusForce = focusCohesion(_fish2);
-				var forwardMovementForce = new _Point2.default(Math.cos(_fish2.rotation), Math.sin(_fish2.rotation));
+				var _forwardMovementForce = new _Point2.default(Math.cos(_fish2.rotation), Math.sin(_fish2.rotation));
 	
 				// weight each force
+				sharkFearForce.multiply(vars.sharkFearMultiple);
 				seperationForce.multiply(vars.seperationMultiple);
-				cohesionForce.multiply(vars.cohesionMultiple);
+				_cohesionForce.multiply(vars.cohesionMultiple);
 				alignmentForce.multiply(vars.alignmentMultiple);
 				currentFocusForce.multiply(vars.focusCohesionMultiple);
-				forwardMovementForce.multiply(vars.forwardMovementMultiple);
+				_forwardMovementForce.multiply(vars.forwardMovementMultiple * (_surroundingFishies.length / 4));
 	
 				// adjust fish velocity
-				_fish2.acceleration.add(seperationForce, cohesionForce, alignmentForce, currentFocusForce, forwardMovementForce);
+				_fish2.acceleration.add(sharkFearForce, seperationForce, _cohesionForce, alignmentForce, currentFocusForce, _forwardMovementForce);
 				_fish2.velocity.add(_fish2.acceleration);
 				_fish2.velocity.limit(vars.maxSpeed);
 	
@@ -554,18 +716,27 @@
 				// ease to correct rotation
 				_fish2.aimRotation = Math.atan2(_fish2.velocity.y, _fish2.velocity.x);
 				if (_fish2.aimRotation < 0) _fish2.aimRotation += PI2;
-				var diff = _fish2.aimRotation - _fish2.rotation;
-				if (diff > PI) diff -= PI2;
-				if (diff < -PI) diff += PI2;
-				_fish2.rotation += diff / vars.rotationEase;
+				var _diff = _fish2.aimRotation - _fish2.rotation;
+				if (_diff > PI) _diff -= PI2;
+				if (_diff < -PI) _diff += PI2;
+				_fish2.rotation += _diff / vars.rotationEase;
 	
 				// keep upright
-				var absRotation = _fish2.rotation % PI2;
-				_fish2.scale.y = absRotation > PI / 2 && absRotation < PI * 1.5 ? -vars.fishScale : vars.fishScale;
+				var _absRotation = _fish2.rotation % PI2;
+				_fish2.scale.y = _absRotation > PI / 2 && _absRotation < PI * 1.5 ? -vars.fishScale : vars.fishScale;
+	
+				// maybe blow a bubble
+				if (Math.random() < vars.bubbleProbability) {
+					var _bubble = new _pixi.Sprite(bubbleTexture);
+					_bubble.scale.set(vars.bubbleSize);
+					_bubble.position = { x: _fish2.position.x, y: _fish2.position.y };
+					bubblesContainer.addChild(_bubble);
+					bubbles.push(_bubble);
+				}
 	
 				if (vars.showZones) {
 					var seperationAngle = Math.atan2(seperationForce.y, seperationForce.x);
-					var cohesionAngle = Math.atan2(cohesionForce.y, cohesionForce.x);
+					var cohesionAngle = Math.atan2(_cohesionForce.y, _cohesionForce.x);
 					var alignmentAngle = Math.atan2(alignmentForce.y, alignmentForce.x);
 					if (seperationForce.x !== 0 && seperationForce.y !== 0) {
 						velocitiesGraphic.lineStyle(3, 0xFF0000, 0.5);
@@ -581,16 +752,16 @@
 				}
 			}
 		} catch (err) {
-			_didIteratorError5 = true;
-			_iteratorError5 = err;
+			_didIteratorError7 = true;
+			_iteratorError7 = err;
 		} finally {
 			try {
-				if (!_iteratorNormalCompletion5 && _iterator5.return) {
-					_iterator5.return();
+				if (!_iteratorNormalCompletion7 && _iterator7.return) {
+					_iterator7.return();
 				}
 			} finally {
-				if (_didIteratorError5) {
-					throw _iteratorError5;
+				if (_didIteratorError7) {
+					throw _iteratorError7;
 				}
 			}
 		}
@@ -619,19 +790,22 @@
 	
 	// calcuates the seperation velocity based on surrounding fish
 	function seperation(fish, surroundingFishies) {
+		var isShark = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
+	
+		var desiredSeparation = isShark ? vars.sharkFearRadius : vars.desiredSeparation;
 		var steer = new _Point2.default();
-		var _iteratorNormalCompletion6 = true;
-		var _didIteratorError6 = false;
-		var _iteratorError6 = undefined;
+		var _iteratorNormalCompletion8 = true;
+		var _didIteratorError8 = false;
+		var _iteratorError8 = undefined;
 	
 		try {
-			for (var _iterator6 = surroundingFishies[Symbol.iterator](), _step6; !(_iteratorNormalCompletion6 = (_step6 = _iterator6.next()).done); _iteratorNormalCompletion6 = true) {
-				var friend = _step6.value;
+			for (var _iterator8 = surroundingFishies[Symbol.iterator](), _step8; !(_iteratorNormalCompletion8 = (_step8 = _iterator8.next()).done); _iteratorNormalCompletion8 = true) {
+				var friend = _step8.value;
 	
 				var position = new _Point2.default(fish.position.x, fish.position.y);
 				var dist = position.distance(friend.position);
 				var _count = 0;
-				if (dist > 0 && dist < vars.desiredSeparation) {
+				if (dist > 0 && dist < desiredSeparation) {
 					_count++;
 					var diff = position.subtract(friend.position);
 					diff.normalize();
@@ -643,16 +817,16 @@
 				}
 			}
 		} catch (err) {
-			_didIteratorError6 = true;
-			_iteratorError6 = err;
+			_didIteratorError8 = true;
+			_iteratorError8 = err;
 		} finally {
 			try {
-				if (!_iteratorNormalCompletion6 && _iterator6.return) {
-					_iterator6.return();
+				if (!_iteratorNormalCompletion8 && _iterator8.return) {
+					_iterator8.return();
 				}
 			} finally {
-				if (_didIteratorError6) {
-					throw _iteratorError6;
+				if (_didIteratorError8) {
+					throw _iteratorError8;
 				}
 			}
 		}
@@ -673,13 +847,13 @@
 	
 		var sum = new _Point2.default();
 		var count = 0;
-		var _iteratorNormalCompletion7 = true;
-		var _didIteratorError7 = false;
-		var _iteratorError7 = undefined;
+		var _iteratorNormalCompletion9 = true;
+		var _didIteratorError9 = false;
+		var _iteratorError9 = undefined;
 	
 		try {
-			for (var _iterator7 = surroundingFishies[Symbol.iterator](), _step7; !(_iteratorNormalCompletion7 = (_step7 = _iterator7.next()).done); _iteratorNormalCompletion7 = true) {
-				var friend = _step7.value;
+			for (var _iterator9 = surroundingFishies[Symbol.iterator](), _step9; !(_iteratorNormalCompletion9 = (_step9 = _iterator9.next()).done); _iteratorNormalCompletion9 = true) {
+				var friend = _step9.value;
 	
 				if (!vars.preferOwnSpecies || vars.preferOwnSpecies && friend.type === fish.type) {
 					var position = new _Point2.default(fish.position.x, fish.position.y);
@@ -691,16 +865,16 @@
 				}
 			}
 		} catch (err) {
-			_didIteratorError7 = true;
-			_iteratorError7 = err;
+			_didIteratorError9 = true;
+			_iteratorError9 = err;
 		} finally {
 			try {
-				if (!_iteratorNormalCompletion7 && _iterator7.return) {
-					_iterator7.return();
+				if (!_iteratorNormalCompletion9 && _iterator9.return) {
+					_iterator9.return();
 				}
 			} finally {
-				if (_didIteratorError7) {
-					throw _iteratorError7;
+				if (_didIteratorError9) {
+					throw _iteratorError9;
 				}
 			}
 		}
@@ -716,17 +890,19 @@
 	
 	// calcuates the cohesion velocity based on surrounding fish
 	function cohesion(fish, surroundingFishies) {
+		var isShark = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
+	
 		var sum = new _Point2.default();
 		var count = 0;
-		var _iteratorNormalCompletion8 = true;
-		var _didIteratorError8 = false;
-		var _iteratorError8 = undefined;
+		var _iteratorNormalCompletion10 = true;
+		var _didIteratorError10 = false;
+		var _iteratorError10 = undefined;
 	
 		try {
-			for (var _iterator8 = surroundingFishies[Symbol.iterator](), _step8; !(_iteratorNormalCompletion8 = (_step8 = _iterator8.next()).done); _iteratorNormalCompletion8 = true) {
-				var friend = _step8.value;
+			for (var _iterator10 = surroundingFishies[Symbol.iterator](), _step10; !(_iteratorNormalCompletion10 = (_step10 = _iterator10.next()).done); _iteratorNormalCompletion10 = true) {
+				var friend = _step10.value;
 	
-				if (!vars.preferOwnSpecies || vars.preferOwnSpecies && friend.type === fish.type) {
+				if (isShark || !vars.preferOwnSpecies || vars.preferOwnSpecies && friend.type === fish.type) {
 					var position = new _Point2.default(fish.position.x, fish.position.y);
 					var dist = position.distance(friend.position);
 					if (dist > 0) {
@@ -736,16 +912,16 @@
 				}
 			}
 		} catch (err) {
-			_didIteratorError8 = true;
-			_iteratorError8 = err;
+			_didIteratorError10 = true;
+			_iteratorError10 = err;
 		} finally {
 			try {
-				if (!_iteratorNormalCompletion8 && _iterator8.return) {
-					_iterator8.return();
+				if (!_iteratorNormalCompletion10 && _iterator10.return) {
+					_iterator10.return();
 				}
 			} finally {
-				if (_didIteratorError8) {
-					throw _iteratorError8;
+				if (_didIteratorError10) {
+					throw _iteratorError10;
 				}
 			}
 		}
