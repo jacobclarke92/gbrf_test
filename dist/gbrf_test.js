@@ -90,14 +90,17 @@
 		fishScale: 0.25,
 		desiredSeparation: 35, //px
 		offscreen: 35, //px
+		preferOwnSpecies: false,
 	
 		maxSpeed: 8,
 		maxForce: 0.15,
 		seperationMultiple: 30,
-		cohesionMultiple: 1.2,
 		alignmentMultiple: 0.4,
+		cohesionMultiple: 1.2,
+		focusCohesionMultiple: 6,
 		globalSpeedMultiple: 0.5,
-		rotationEase: 3, // lower is less
+		focusOscillationSpeed: 0.02,
+		rotationEase: 6, // lower is less
 	
 		zoneSize: 100,
 		showZones: false,
@@ -133,6 +136,7 @@
 	var velocitiesGraphic = new _pixi.Graphics();
 	zonesContainer.addChild(zonesGraphic);
 	zonesContainer.addChild(velocitiesGraphic);
+	var focusOscillation = 0;
 	
 	function init() {
 		(0, _jquery2.default)(document).ready(function () {
@@ -144,14 +148,17 @@
 			guiGeneral.add(vars, 'numFishies', 1, 750).step(1);
 			guiGeneral.add(vars, 'fishScale', 0.05, 2);
 			guiGeneral.add(vars, 'offscreen', 0, 500);
+			guiGeneral.add(vars, 'preferOwnSpecies');
 			var guiFlocking = gui.addFolder('Flocking');
 			guiFlocking.add(vars, 'maxSpeed', 0.5, 50);
 			guiFlocking.add(vars, 'maxForce', 0.05, 5);
 			guiFlocking.add(vars, 'desiredSeparation', 0, 500);
 			guiFlocking.add(vars, 'seperationMultiple', 1, 100);
-			guiFlocking.add(vars, 'cohesionMultiple', 0.05, 10);
 			guiFlocking.add(vars, 'alignmentMultiple', 0.01, 3);
+			guiFlocking.add(vars, 'cohesionMultiple', 0.05, 10);
+			guiFlocking.add(vars, 'focusCohesionMultiple', 0.05, 10);
 			guiFlocking.add(vars, 'globalSpeedMultiple', 0.01, 10);
+			guiFlocking.add(vars, 'focusOscillationSpeed', 0.001, 0.5);
 			guiFlocking.add(vars, 'rotationEase', 1, 100);
 			var guiZones = gui.addFolder('Zoning');
 			guiZones.add(vars, 'showZones');
@@ -238,9 +245,15 @@
 	function updateCurrentFocusBounds() {
 		if (!$currentFocus) return;
 		var offset = $currentFocus.offset();
-		currentFocusBounds = { left: offset.left, top: offset.top - scroll };
-		currentFocusBounds.right = currentFocusBounds.left + $currentFocus.width();
-		currentFocusBounds.bottom = currentFocusBounds.top + $currentFocus.height();
+		currentFocusBounds = {
+			width: $currentFocus.width(),
+			height: $currentFocus.height(),
+			left: offset.left,
+			top: offset.top - scroll
+		};
+		currentFocusBounds.right = currentFocusBounds.left + currentFocusBounds.width;
+		currentFocusBounds.bottom = currentFocusBounds.top + currentFocusBounds.height;
+		focusOscillation = 0;
 	}
 	
 	function rendererResize() {
@@ -285,6 +298,7 @@
 	function initFish(i) {
 		var fishSprite = new _pixi.Sprite();
 		fishSprite.key = i;
+		fishSprite.type = i % fishSprites.length;
 		fishSprite.texture = fishSprites[i % fishSprites.length].texture;
 		fishSprite.anchor = new _Point2.default(0.15, 0.5);
 		fishSprite.position.x = Math.random() * width;
@@ -476,6 +490,7 @@
 		}
 	
 		if (vars.showZones) velocitiesGraphic.clear();
+		focusOscillation += vars.focusOscillationSpeed;
 	
 		// iterate over the fishies!
 		var _iteratorNormalCompletion5 = true;
@@ -512,15 +527,16 @@
 				var seperationForce = seperation(_fish2, _surroundingFishies);
 				var cohesionForce = cohesion(_fish2, _surroundingFishies);
 				var alignmentForce = alignment(_fish2, _surroundingFishies);
-				// const currentFocusForce = focusCohesion(fish, )
+				var currentFocusForce = focusCohesion(_fish2);
 	
 				// weight each force
 				seperationForce.multiply(vars.seperationMultiple);
 				cohesionForce.multiply(vars.cohesionMultiple);
 				alignmentForce.multiply(vars.alignmentMultiple);
+				currentFocusForce.multiply(vars.focusCohesionMultiple);
 	
 				// adjust fish velocity
-				_fish2.acceleration.add(seperationForce, cohesionForce, alignmentForce);
+				_fish2.acceleration.add(seperationForce, cohesionForce, alignmentForce, currentFocusForce);
 				_fish2.velocity.add(_fish2.acceleration);
 				_fish2.velocity.limit(vars.maxSpeed);
 	
@@ -579,6 +595,17 @@
 	
 		renderer.render(stage);
 		if (animating) window.requestAnimationFrame(animate);
+	}
+	
+	function focusCohesion(fish) {
+		var sum = new _Point2.default();
+		if (!$currentFocus || currentFocusBounds.top < 0 || currentFocusBounds.bottom > height) return sum;
+	
+		var position = new _Point2.default(fish.position.x, fish.position.y);
+		var focusPosition = new _Point2.default(currentFocusBounds.left + currentFocusBounds.width / 2 + Math.cos(focusOscillation) * currentFocusBounds.width / 2, currentFocusBounds.top + currentFocusBounds.height / 2);
+		var dist = position.distance(focusPosition);
+		sum.add(focusPosition);
+		return seek(fish, sum);
 	}
 	
 	/*
@@ -650,11 +677,13 @@
 			for (var _iterator7 = surroundingFishies[Symbol.iterator](), _step7; !(_iteratorNormalCompletion7 = (_step7 = _iterator7.next()).done); _iteratorNormalCompletion7 = true) {
 				var friend = _step7.value;
 	
-				var position = new _Point2.default(fish.position.x, fish.position.y);
-				var dist = position.distance(friend.position);
-				if (dist > 0) {
-					sum.add(friend.velocity);
-					count++;
+				if (!vars.preferOwnSpecies || vars.preferOwnSpecies && friend.type === fish.type) {
+					var position = new _Point2.default(fish.position.x, fish.position.y);
+					var dist = position.distance(friend.position);
+					if (dist > 0) {
+						sum.add(friend.velocity);
+						count++;
+					}
 				}
 			}
 		} catch (err) {
@@ -693,11 +722,13 @@
 			for (var _iterator8 = surroundingFishies[Symbol.iterator](), _step8; !(_iteratorNormalCompletion8 = (_step8 = _iterator8.next()).done); _iteratorNormalCompletion8 = true) {
 				var friend = _step8.value;
 	
-				var position = new _Point2.default(fish.position.x, fish.position.y);
-				var dist = position.distance(friend.position);
-				if (dist > 0) {
-					sum.add(friend.position);
-					count++;
+				if (!vars.preferOwnSpecies || vars.preferOwnSpecies && friend.type === fish.type) {
+					var position = new _Point2.default(fish.position.x, fish.position.y);
+					var dist = position.distance(friend.position);
+					if (dist > 0) {
+						sum.add(friend.position);
+						count++;
+					}
 				}
 			}
 		} catch (err) {

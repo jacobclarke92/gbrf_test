@@ -44,11 +44,16 @@
 
 			.dg.main, .dg.main .close-button {
 				width: 300px !important;
+				margin-right: 0 !important;
 			}
 
 			input[data-fish-focus] {
 				padding: 5px;
 				font-size: 24px;
+			}
+			input[data-fish-focus]:focus {
+				border: 2px solid orange;
+				outline: none;
 			}
 		</style>
 	</head>
@@ -61,9 +66,21 @@
 		<h6 class="text-center">Jacob Clarke</h6>
 
 		<div class="text-center">
-			<input data-fish-focus style="margin-top: 300px" />
+			<input data-fish-focus style="margin-top: 300px" placeholder="Enter text" />
 			<br />
-			<input data-fish-focus style="margin-top: 300px" />
+			<input data-fish-focus style="margin-top: 30px" placeholder="Enter text" />
+			<br />
+			<input data-fish-focus style="margin-top: 30px" placeholder="Enter text" />
+			<br />
+			<input data-fish-focus style="margin-top: 30px" placeholder="Enter text" />
+			<br />
+			<input data-fish-focus style="margin-top: 300px" placeholder="Enter text" />
+			<br />
+			<input data-fish-focus style="margin-top: 300px" placeholder="Enter text" />
+			<br />
+			<input data-fish-focus style="margin-top: 300px" placeholder="Enter text" />
+			<br />
+			<input data-fish-focus style="margin-top: 300px" placeholder="Enter text" />
 		</div>
 
 		<div id="fishies_bg"></div>
