@@ -92,6 +92,7 @@
 		sharkScale: 0.5,
 		desiredSeparation: 20, //px
 		offscreen: 35, //px
+		bendPoints: 20,
 		preferOwnSpecies: true,
 	
 		waterEffect: false,
@@ -102,6 +103,8 @@
 	
 		maxSpeed: 8,
 		maxForce: 0.15,
+		fishTailSpeed: 0.5,
+		fishTailMovement: 0.75,
 		seperationMultiple: 40,
 		alignmentMultiple: 0.4,
 		cohesionMultiple: 1.6,
@@ -112,6 +115,8 @@
 		sharkHungerMultiple: 6,
 		sharkForwardMovementMultiple: 1,
 		sharkMaxSpeed: 12,
+		sharkTailSpeed: 0.25,
+		sharkTailMovement: 1.1,
 	
 		globalSpeedMultiple: 0.5,
 		focusOscillationSpeed: 0.02,
@@ -150,6 +155,8 @@
 	var bubbles = [];
 	var sharks = [];
 	var zones = [];
+	var fishWidth = 250;
+	var sharkWidth = 500;
 	
 	var zoneCalcThrottleCount = vars.zoneCalcThrottle;
 	var bubblesContainer = new _pixi.Container();
@@ -174,28 +181,32 @@
 			guiWater.add(vars, 'waterSpeed', 0, 10);
 			guiWater.add(vars, 'bubbleProbability', 0, 0.1);
 			guiWater.add(vars, 'bubbleSize', 0.01, 0.5);
-			var guiFlocking = gui.addFolder('Fishies');
-			guiFlocking.add(vars, 'preferOwnSpecies');
-			guiFlocking.add(vars, 'numFishies', 1, 750).step(1);
-			guiFlocking.add(vars, 'fishScale', 0.05, 2);
-			guiFlocking.add(vars, 'maxSpeed', 0.5, 50);
-			guiFlocking.add(vars, 'maxForce', 0.05, 5);
-			guiFlocking.add(vars, 'desiredSeparation', 0, 500);
-			guiFlocking.add(vars, 'seperationMultiple', 1, 100);
-			guiFlocking.add(vars, 'alignmentMultiple', 0.01, 3);
-			guiFlocking.add(vars, 'cohesionMultiple', 0.05, 10);
-			guiFlocking.add(vars, 'forwardMovementMultiple', 0, 0.1);
-			guiFlocking.add(vars, 'focusCohesionMultiple', 0.05, 10);
-			guiFlocking.add(vars, 'sharkFearMultiple', 0.05, 1000);
-			guiFlocking.add(vars, 'globalSpeedMultiple', 0.01, 10);
-			guiFlocking.add(vars, 'focusOscillationSpeed', 0.001, 0.5);
-			guiFlocking.add(vars, 'rotationEase', 1, 100);
+			var guiFishies = gui.addFolder('Fishies');
+			guiFishies.add(vars, 'preferOwnSpecies');
+			guiFishies.add(vars, 'numFishies', 1, 750).step(1);
+			guiFishies.add(vars, 'fishScale', 0.05, 2);
+			guiFishies.add(vars, 'maxSpeed', 0.5, 50);
+			guiFishies.add(vars, 'maxForce', 0.05, 5);
+			guiFishies.add(vars, 'desiredSeparation', 0, 500);
+			guiFishies.add(vars, 'seperationMultiple', 1, 100);
+			guiFishies.add(vars, 'alignmentMultiple', 0.01, 3);
+			guiFishies.add(vars, 'cohesionMultiple', 0.05, 10);
+			guiFishies.add(vars, 'forwardMovementMultiple', 0, 0.1);
+			guiFishies.add(vars, 'focusCohesionMultiple', 0.05, 10);
+			guiFishies.add(vars, 'sharkFearMultiple', 0.05, 1000);
+			guiFishies.add(vars, 'globalSpeedMultiple', 0.01, 10);
+			guiFishies.add(vars, 'focusOscillationSpeed', 0.001, 0.5);
+			guiFishies.add(vars, 'fishTailSpeed', 0.005, 1);
+			guiFishies.add(vars, 'fishTailMovement', 0.001, 1.5);
+			guiFishies.add(vars, 'rotationEase', 1, 100);
 			var guiShark = gui.addFolder('Shark');
 			guiShark.add(vars, 'showShark');
 			guiShark.add(vars, 'sharkScale', 0.05, 2);
 			guiShark.add(vars, 'sharkHungerMultiple', 0.05, 6);
 			guiShark.add(vars, 'sharkForwardMovementMultiple', 0.05, 6);
 			guiShark.add(vars, 'sharkMaxSpeed', 0.05, 20);
+			guiShark.add(vars, 'sharkTailSpeed', 0.005, 1);
+			guiShark.add(vars, 'sharkTailMovement', 0.001, 1.5);
 			var guiZones = gui.addFolder('Zoning');
 			guiZones.add(vars, 'showZones');
 			guiZones.add(vars, 'zoneSize', 10, 1000);
@@ -323,7 +334,12 @@
 					displacementFilter.scale.x = displacementFilter.scale.y = vars.waterIntensity;
 					break;
 				case 'shark':
-					sharkSprite = new _pixi.Sprite(resources[key].texture);
+					var bendPoints = [];
+					for (var i = 0; i < vars.bendPoints; i++) {
+						bendPoints.push(new _Point2.default(i * (sharkWidth / vars.bendPoints), 0));
+					}
+					sharkSprite = new _pixi2.default.mesh.Rope(resources[key].texture, bendPoints);
+					sharkSprite.bendPoints = bendPoints;
 					sharkSprite.anchor = { x: 0.3, y: 0.8 };
 					sharkSprite.position.x = Math.random() * width;
 					sharkSprite.position.y = Math.random() * height;
@@ -360,10 +376,14 @@
 	}
 	
 	function initFish(i) {
-		var fishSprite = new _pixi.Sprite();
+		var bendPoints = [];
+		for (var _i = 0; _i < vars.bendPoints; _i++) {
+			bendPoints.push(new _Point2.default(_i * (fishWidth / vars.bendPoints), 0));
+		}
+		var fishSprite = new _pixi2.default.mesh.Rope(fishSprites[i % fishSprites.length].texture, bendPoints);
+		fishSprite.bendPoints = bendPoints;
 		fishSprite.key = i;
 		fishSprite.type = i % fishSprites.length;
-		fishSprite.texture = fishSprites[i % fishSprites.length].texture;
 		fishSprite.anchor = new _Point2.default(0.25, 0.5);
 		fishSprite.position.x = Math.random() * width;
 		fishSprite.position.y = Math.random() * height;
@@ -382,7 +402,11 @@
 		return fishSprite;
 	}
 	
+	var sharkTail = 0;
+	var fishTail = 0;
 	function animate() {
+		sharkTail += vars.sharkTailSpeed;
+		fishTail += vars.fishTailSpeed;
 	
 		displacementFilter.scale.x = displacementFilter.scale.y = vars.waterIntensity;
 		displacementSprite.anchor.x = displacementSprite.anchor.y += vars.waterSpeed / 1000;
@@ -401,8 +425,8 @@
 					fishies.splice(fishies.indexOf(fishSprite), 1);
 				}
 			} else if (excess < 0) {
-				for (var _i = 0; _i < Math.abs(excess); _i++) {
-					var _fishSprite = initFish(fishies.length + _i);
+				for (var _i2 = 0; _i2 < Math.abs(excess); _i2++) {
+					var _fishSprite = initFish(fishies.length + _i2);
 					stage.addChild(_fishSprite);
 					fishies.push(_fishSprite);
 				}
@@ -629,9 +653,14 @@
 					if (diff < -PI) diff += PI2;
 					shark.rotation += diff / vars.rotationEase;
 	
-					// keep upright
-					var absRotation = shark.rotation % PI2;
-					shark.scale.y = absRotation > PI / 2 && absRotation < PI * 1.5 ? -vars.sharkScale : vars.sharkScale;
+					// wag tail
+					for (var _i3 = 0; _i3 < vars.bendPoints / 2; _i3++) {
+						shark.bendPoints[Math.floor(vars.bendPoints / 2 + _i3)].y = Math.cos(sharkTail) * Math.pow(vars.sharkTailMovement * _i3, 2);
+					}
+	
+					// keep upright -- bugs out on shark don't know why...
+					// const absRotation = (shark.rotation%PI2);
+					// shark.scale.y = (absRotation > PI/2 && absRotation < PI*1.5) ? -vars.sharkScale : vars.sharkScale;
 				}
 			} catch (err) {
 				_didIteratorError6 = true;
@@ -648,8 +677,8 @@
 				}
 			}
 		} else {
-			if (stage.children.indexOf(sharkSprite) > -1) stage.removeChild(sharkSprite);
-		}
+				if (stage.children.indexOf(sharkSprite) > -1) stage.removeChild(sharkSprite);
+			}
 	
 		if (vars.showZones) velocitiesGraphic.clear();
 		focusOscillation += vars.focusOscillationSpeed;
@@ -722,8 +751,13 @@
 				_fish2.rotation += _diff / vars.rotationEase;
 	
 				// keep upright
-				var _absRotation = _fish2.rotation % PI2;
-				_fish2.scale.y = _absRotation > PI / 2 && _absRotation < PI * 1.5 ? -vars.fishScale : vars.fishScale;
+				var absRotation = _fish2.rotation % PI2;
+				_fish2.scale.y = absRotation > PI / 2 && absRotation < PI * 1.5 ? -vars.fishScale : vars.fishScale;
+	
+				// wag tail
+				for (var _i4 = 0; _i4 < vars.bendPoints / 2; _i4++) {
+					_fish2.bendPoints[Math.floor(vars.bendPoints / 2 + _i4)].y = Math.cos(fishTail + _fish2.key / 5) * Math.pow(vars.fishTailMovement * _i4, 2);
+				}
 	
 				// maybe blow a bubble
 				if (Math.random() < vars.bubbleProbability) {
