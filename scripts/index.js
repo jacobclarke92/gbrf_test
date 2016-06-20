@@ -7,16 +7,17 @@ import Point from './Point'
 
 const fishFiles = ['fish1.png','fish2.png','fish3.png','fish4.png','fish5.png','fish6.png','fish7.png','fish8.png','fish9.png','fish10.png','fish11.png','fish12.png'];
 
+const showGui = true;
 const vars = {
 	bgColor: '#175282',
 	numFishies: 80,
 	fishScale: 0.25,
 	showShark: true,
 	sharkScale: 0.5,
-	desiredSeparation: 20, //px
+	desiredSeparation: 16, //px
 	offscreen: 35, //px
 	bendPoints: 20,
-	preferOwnSpecies: true,
+	preferOwnSpecies: false,
 
 	waterEffect: false,
 	waterIntensity: 30,
@@ -111,47 +112,50 @@ export function init() {
 
 
 		// init dat GUI
-		gui = new dat.GUI();
-		const guiGeneral = gui.addFolder('General');
-		guiGeneral.addColor(vars, 'bgColor').onChange(color => renderer.backgroundColor = eval('0x'+color.substring(1)));
-		guiGeneral.add(vars, 'offscreen', 0, 500);
-		const guiWater = gui.addFolder('Water');
-		guiWater.add(vars, 'waterEffect');
-		guiWater.add(vars, 'waterIntensity', 0, 200);
-		guiWater.add(vars, 'waterSpeed', 0, 10);
-		guiWater.add(vars, 'bubbleProbability', 0, 0.1);
-		guiWater.add(vars, 'bubbleSize', 0.01, 0.5);
-		const guiFishies = gui.addFolder('Fishies');
-		guiFishies.add(vars, 'preferOwnSpecies');
-		guiFishies.add(vars, 'numFishies', 1, 750).step(1);
-		guiFishies.add(vars, 'fishScale', 0.05, 2);
-		guiFishies.add(vars, 'maxSpeed', 0.5, 50);
-		guiFishies.add(vars, 'maxForce', 0.05, 5);
-		guiFishies.add(vars, 'desiredSeparation', 0, 500);
-		guiFishies.add(vars, 'seperationMultiple', 1, 100);
-		guiFishies.add(vars, 'alignmentMultiple', 0.01, 3);
-		guiFishies.add(vars, 'cohesionMultiple', 0.05, 10);
-		guiFishies.add(vars, 'forwardMovementMultiple', 0, 0.1);
-		guiFishies.add(vars, 'focusCohesionMultiple', 0.05, 10);
-		guiFishies.add(vars, 'sharkFearMultiple', 0.05, 1000);
-		guiFishies.add(vars, 'globalSpeedMultiple', 0.01, 10);
-		guiFishies.add(vars, 'focusOscillationSpeed', 0.001, 0.5);
-		guiFishies.add(vars, 'fishTailSpeed', 0.005, 1);
-		guiFishies.add(vars, 'fishTailMovement', 0.001, 1.5);
-		guiFishies.add(vars, 'rotationEase', 1, 100);
-		const guiShark = gui.addFolder('Shark');
-		guiShark.add(vars, 'showShark');
-		guiShark.add(vars, 'sharkScale', 0.05, 2);
-		guiShark.add(vars, 'sharkHungerMultiple', 0.05, 6);
-		guiShark.add(vars, 'sharkForwardMovementMultiple', 0.05, 6);
-		guiShark.add(vars, 'sharkMaxSpeed', 0.05, 20);
-		guiShark.add(vars, 'sharkTailSpeed', 0.005, 1);
-		guiShark.add(vars, 'sharkTailMovement', 0.001, 1.5);
-		const guiZones = gui.addFolder('Zoning');
-		guiZones.add(vars, 'showZones');
-		guiZones.add(vars, 'zoneSize', 10, 1000);
-		guiZones.add(vars, 'zoneCalcThrottle', 1, 60);
-		gui.remember(vars);
+		if(showGui) {
+			gui = new dat.GUI();
+			const guiGeneral = gui.addFolder('General');
+			guiGeneral.addColor(vars, 'bgColor').onChange(color => renderer.backgroundColor = eval('0x'+color.substring(1)));
+			guiGeneral.add(vars, 'offscreen', 0, 500);
+			const guiWater = gui.addFolder('Water');
+			guiWater.add(vars, 'waterEffect');
+			guiWater.add(vars, 'waterIntensity', 0, 200);
+			guiWater.add(vars, 'waterSpeed', 0, 10);
+			guiWater.add(vars, 'bubbleProbability', 0, 0.1);
+			guiWater.add(vars, 'bubbleSize', 0.01, 0.5);
+			const guiFishies = gui.addFolder('Fishies');
+			guiFishies.add(vars, 'preferOwnSpecies');
+			guiFishies.add(vars, 'numFishies', 1, 750).step(1);
+			guiFishies.add(vars, 'fishScale', 0.05, 2);
+			guiFishies.add(vars, 'maxSpeed', 0.5, 50);
+			guiFishies.add(vars, 'maxForce', 0.05, 5);
+			guiFishies.add(vars, 'desiredSeparation', 0, 500);
+			guiFishies.add(vars, 'seperationMultiple', 1, 100);
+			guiFishies.add(vars, 'alignmentMultiple', 0.01, 3);
+			guiFishies.add(vars, 'cohesionMultiple', 0.05, 10);
+			guiFishies.add(vars, 'forwardMovementMultiple', 0, 0.1);
+			guiFishies.add(vars, 'focusCohesionMultiple', 0.05, 10);
+			guiFishies.add(vars, 'sharkFearMultiple', 0.05, 1000);
+			guiFishies.add(vars, 'globalSpeedMultiple', 0.01, 10);
+			guiFishies.add(vars, 'focusOscillationSpeed', 0.001, 0.5);
+			guiFishies.add(vars, 'fishTailSpeed', 0.005, 1);
+			guiFishies.add(vars, 'fishTailMovement', 0.001, 1.5);
+			guiFishies.add(vars, 'rotationEase', 1, 100);
+			const guiShark = gui.addFolder('Shark');
+			guiShark.add(vars, 'showShark');
+			guiShark.add(vars, 'sharkScale', 0.05, 2);
+			guiShark.add(vars, 'sharkHungerMultiple', 0.05, 6);
+			guiShark.add(vars, 'sharkForwardMovementMultiple', 0.05, 6);
+			guiShark.add(vars, 'sharkMaxSpeed', 0.05, 20);
+			guiShark.add(vars, 'sharkTailSpeed', 0.005, 1);
+			guiShark.add(vars, 'sharkTailMovement', 0.001, 1.5);
+			const guiZones = gui.addFolder('Zoning');
+			guiZones.add(vars, 'showZones');
+			guiZones.add(vars, 'zoneSize', 10, 1000);
+			guiZones.add(vars, 'zoneCalcThrottle', 1, 60);
+			gui.remember(vars);
+			gui.close();
+		}
 
 
 		// init window event bindings
@@ -169,6 +173,14 @@ export function init() {
 			updateCurrentFocusBounds();
 		});
 		$('[data-fish-focus]').blur(function() {
+			$currentFocus = null;
+			currentFocusBounds = null;
+		});
+		$('[data-fish-hover]').on('mouseover', function() {
+			$currentFocus = $(this);
+			updateCurrentFocusBounds();
+		});
+		$('[data-fish-hover]').on('mouseout', function() {
 			$currentFocus = null;
 			currentFocusBounds = null;
 		});
@@ -593,7 +605,7 @@ function focusCohesion(fish) {
 	const position = new Point(fish.position.x, fish.position.y);
 	const focusPosition = new Point(
 		currentFocusBounds.left + currentFocusBounds.width/2 + Math.cos(focusOscillation)*currentFocusBounds.width/2, 
-		currentFocusBounds.top + currentFocusBounds.height/2
+		currentFocusBounds.top + currentFocusBounds.height/2 + Math.sin(focusOscillation)*currentFocusBounds.height/2
 	);
 	const dist = position.distance(focusPosition);
 	sum.add(focusPosition);
