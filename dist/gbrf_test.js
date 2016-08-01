@@ -62,19 +62,19 @@
 	
 	var _pixi2 = _interopRequireDefault(_pixi);
 	
-	var _datGui = __webpack_require__(/*! dat-gui */ 142);
+	var _datGui = __webpack_require__(/*! dat-gui */ 195);
 	
 	var _datGui2 = _interopRequireDefault(_datGui);
 	
-	var _lodash = __webpack_require__(/*! lodash.throttle */ 145);
+	var _throttle2 = __webpack_require__(/*! lodash/throttle */ 142);
 	
-	var _lodash2 = _interopRequireDefault(_lodash);
+	var _throttle3 = _interopRequireDefault(_throttle2);
 	
-	var _lodash3 = __webpack_require__(/*! lodash.get */ 147);
+	var _get2 = __webpack_require__(/*! lodash/get */ 150);
 	
-	var _lodash4 = _interopRequireDefault(_lodash3);
+	var _get3 = _interopRequireDefault(_get2);
 	
-	var _Point = __webpack_require__(/*! ./Point */ 150);
+	var _Point = __webpack_require__(/*! ./Point */ 194);
 	
 	var _Point2 = _interopRequireDefault(_Point);
 	
@@ -82,68 +82,70 @@
 	
 	function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
 	
-	var fishFiles = ['fish1.png', 'fish2.png', 'fish3.png', 'fish4.png', 'fish5.png', 'fish6.png', 'fish7.png', 'fish8.png', 'fish9.png', 'fish10.png', 'fish11.png', 'fish12.png'];
+	// const fishFiles = ['fish1.png','fish2.png','fish3.png','fish4.png','fish5.png','fish6.png','fish7.png','fish8.png','fish9.png','fish10.png','fish11.png'];
+	var fishFiles = [/*'fish1.png','fish2.png',*/'fish3.png', 'fish4.png', /*'fish5.png','fish6.png','fish7.png',*/'fish8.png', 'fish9.png', 'fish10.png' /*,'fish11.png'*/];
 	
-	var showGui = true;
 	var vars = {
 		bgColor: '#175282',
-		numFishies: 80,
+		numFishies: 50,
 		fishScale: 0.25,
-		showShark: true,
-		sharkScale: 0.5,
-		desiredSeparation: 16, //px
-		offscreen: 35, //px
+		offscreen: 100, //px
+		sharkOffscreen: 450, //px
 		bendPoints: 20,
-		preferOwnSpecies: false,
+		preferOwnSpecies: true,
 	
 		waterEffect: false,
 		waterIntensity: 30,
-		waterSpeed: 4,
-		bubbleProbability: 0.02,
+		waterSpeed: 5,
 		bubbleSize: 0.06,
+		bubbleProbability: 0.01,
+		sharkBubbleProbability: 0.05,
 	
-		maxSpeed: 8,
+		maxSpeed: 7.5,
 		maxForce: 0.15,
-		fishTailSpeed: 0.5,
+		fishTailSpeed: 0.35,
 		fishTailMovement: 0.75,
-		seperationMultiple: 40,
-		alignmentMultiple: 0.4,
+		desiredSeparation: 30, //px
+		seperationMultiple: 200,
+		alignmentMultiple: 0.6,
 		cohesionMultiple: 1.6,
-		focusCohesionMultiple: 6,
-		forwardMovementMultiple: 0.035,
-		sharkFearMultiple: 400,
+		focusCohesionMultiple: 8,
+		forwardMovementMultiple: 0.2,
+	
+		showShark: true,
+		sharkScale: 0.75,
+		sharkFearMultiple: -10,
 		sharkFearRadius: 250, //px
-		sharkHungerMultiple: 6,
-		sharkForwardMovementMultiple: 1,
-		sharkMaxSpeed: 12,
-		sharkTailSpeed: 0.25,
-		sharkTailMovement: 1.1,
+		sharkHungerMultiple: 2,
+		sharkForwardMovementMultiple: 15,
+		sharkMaxSpeed: 5,
+		sharkTailSpeed: 0.05,
+		sharkTailMovement: 0.5,
+		sharpSpineOffsetY: 40, //px
 	
 		globalSpeedMultiple: 0.5,
-		focusOscillationSpeed: 0.02,
-		rotationEase: 6, // lower is less
+		focusOscillationSpeed: 0.03,
+		rotationEase: 8, // lower is less
 	
-		zoneSize: 100,
+		zoneSize: 160,
 		showZones: false,
-		zoneCalcThrottle: 8 };
+		zoneCalcThrottle: 10 };
 	
 	//every nth frame
+	var showGui = true;
 	var gui = null;
-	var $fishiesContainer = null;
-	var animating = true;
-	var canvas = null;
-	var renderer = null;
-	var stage = null;
-	var displacementSprite = null;
-	var displacementFilter = null;
-	var bubbleTexture = null;
-	var sharkSprite = null;
+	var fishiesInstances = [];
 	
-	var width = null;
-	var height = null;
+	var animating = true;
+	var bubbleTexture = null;
+	var flipperTexture1 = null;
+	var flipperTexture2 = null;
+	
+	var parallax = 1;
 	var resolution = null;
 	var scroll = 0;
 	var scrollOffset = 0;
+	var windowHeight = 500;
 	
 	var $currentFocus = null;
 	var currentFocusBounds = null;
@@ -157,35 +159,104 @@
 	var sharks = [];
 	var zones = [];
 	var fishWidth = 250;
-	var sharkWidth = 500;
+	var sharkWidth = 490;
 	
 	var zoneCalcThrottleCount = vars.zoneCalcThrottle;
-	var bubblesContainer = new _pixi.Container();
-	var zonesContainer = new _pixi.Container();
-	var zonesGraphic = new _pixi.Graphics();
-	var velocitiesGraphic = new _pixi.Graphics();
-	zonesContainer.addChild(zonesGraphic);
-	zonesContainer.addChild(velocitiesGraphic);
 	var focusOscillation = 0;
+	
+	var displacementImage = new Image();
+	var displacementTexture = null;
+	displacementImage.onload = function () {
+		displacementTexture = new _pixi.Texture(new _pixi.BaseTexture(displacementImage));
+		init();
+	};
 	
 	function init() {
 		(0, _jquery2.default)(document).ready(function () {
 	
-			// init renderer, stage, etc.
-			$fishiesContainer = (0, _jquery2.default)('#fishies_bg');
-			width = $fishiesContainer.width();
-			height = $fishiesContainer.height();
 			resolution = window.devicePixelRatio || 1;
+			(0, _jquery2.default)(document).scroll(updateScroll);
+			updateScroll();
 	
-			renderer = new _pixi2.default.autoDetectRenderer(width, height, {
-				// renderer = new PIXI.CanvasRenderer(width, height, {
-				resolution: resolution,
-				transparent: false,
-				backgroundColor: eval('0x' + vars.bgColor.substring(1))
+			(0, _jquery2.default)('[data-fishies]').each(function (i, elem) {
+				var $elem = (0, _jquery2.default)(elem);
+				// $elem.css('background', 'none');
+				$elem.append((0, _jquery2.default)('<div id="fishies_bg" class="fishies"></div>'));
+				var $container = $elem.find('#fishies_bg');
+				var width = $elem.width();
+				var height = $elem.height();
+				var offset = $container[0].getBoundingClientRect();
+				var renderer = new _pixi2.default.autoDetectRenderer(width, height, {
+					resolution: resolution,
+					transparent: true,
+					backgroundColor: eval('0x' + vars.bgColor.substring(1))
+				});
+				var canvas = renderer.view;
+				$container[0].appendChild(canvas);
+				var masterStage = new _pixi.Container();
+				var stage = new _pixi.Container();
+				var bubblesContainer = new _pixi.Container();
+				var fishiesContainer = new _pixi.Container();
+				var sharksContainer = new _pixi.Container();
+				var zonesContainer = new _pixi.Container();
+				var zonesGraphic = new _pixi.Graphics();
+				var velocitiesGraphic = new _pixi.Graphics();
+				var displacementSprite = new _pixi.Sprite(displacementTexture, 1);
+				var displacementFilter = new _pixi2.default.filters.DisplacementFilter(displacementSprite);
+				displacementFilter.scale.x = displacementFilter.scale.y = vars.waterIntensity;
+				fishiesInstances.push({
+					animating: false,
+					$elem: $elem,
+					$container: $container,
+					width: width,
+					height: height,
+					left: offset.left,
+					top: offset.top,
+					renderer: renderer,
+					canvas: canvas,
+					stage: stage,
+					masterStage: masterStage,
+					displacementSprite: displacementSprite,
+					displacementFilter: displacementFilter,
+					fishSprites: [],
+					fishies: [],
+					fishiesContainer: fishiesContainer,
+					bubbles: [],
+					bubblesContainer: bubblesContainer,
+					sharks: [],
+					sharksContainer: sharksContainer,
+					sharkSprite: null,
+					zones: [],
+					zonesContainer: zonesContainer,
+					zonesGraphic: zonesGraphic,
+					velocitiesGraphic: velocitiesGraphic
+				});
 			});
-			canvas = renderer.view;
-			$fishiesContainer[0].appendChild(canvas);
-			stage = new _pixi.Container();
+	
+			// init window event bindings
+			(0, _jquery2.default)(window).resize(rendererResize);
+			(0, _jquery2.default)(window).on('focus', function () {
+				return rendererResize();
+			});
+			rendererResize();
+	
+			// init focus state event binding
+			(0, _jquery2.default)('[data-fish-focus]').focus(function () {
+				$currentFocus = (0, _jquery2.default)(this);
+				updateCurrentFocusBounds();
+			});
+			(0, _jquery2.default)('[data-fish-focus]').blur(function () {
+				$currentFocus = null;
+				currentFocusBounds = null;
+			});
+			(0, _jquery2.default)('[data-fish-hover]').on('mouseover', function () {
+				$currentFocus = (0, _jquery2.default)(this);
+				updateCurrentFocusBounds();
+			});
+			(0, _jquery2.default)('[data-fish-hover]').on('mouseout', function () {
+				$currentFocus = null;
+				currentFocusBounds = null;
+			});
 	
 			// init dat GUI
 			if (showGui) {
@@ -235,73 +306,25 @@
 				gui.close();
 			}
 	
-			// init window event bindings
-			(0, _jquery2.default)(window).resize(rendererResize);
-			(0, _jquery2.default)(window).on('focus', function () {
-				return rendererResize();
-			});
-			rendererResize();
-	
-			(0, _jquery2.default)(document).scroll(updateScroll);
-			updateScroll();
-	
-			// init focus state event binding
-			(0, _jquery2.default)('[data-fish-focus]').focus(function () {
-				$currentFocus = (0, _jquery2.default)(this);
-				updateCurrentFocusBounds();
-			});
-			(0, _jquery2.default)('[data-fish-focus]').blur(function () {
-				$currentFocus = null;
-				currentFocusBounds = null;
-			});
-			(0, _jquery2.default)('[data-fish-hover]').on('mouseover', function () {
-				$currentFocus = (0, _jquery2.default)(this);
-				updateCurrentFocusBounds();
-			});
-			(0, _jquery2.default)('[data-fish-hover]').on('mouseout', function () {
-				$currentFocus = null;
-				currentFocusBounds = null;
-			});
-	
 			// init asset loader
 			_pixi.loader.on('progress', handleLoaderProgress);
 			_pixi.loader.once('complete', handleLoaderComplete);
 	
-			var _iteratorNormalCompletion = true;
-			var _didIteratorError = false;
-			var _iteratorError = undefined;
-	
-			try {
-				for (var _iterator = fishFiles[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-					var fish = _step.value;
-	
-					_pixi.loader.add(fish.split('.')[0], 'assets/' + fish);
-				}
-			} catch (err) {
-				_didIteratorError = true;
-				_iteratorError = err;
-			} finally {
-				try {
-					if (!_iteratorNormalCompletion && _iterator.return) {
-						_iterator.return();
-					}
-				} finally {
-					if (_didIteratorError) {
-						throw _iteratorError;
-					}
-				}
+			for (var f = 0; f < fishFiles.length; f++) {
+				_pixi.loader.add(fishFiles[f].split('.')[0], '/assets/' + fishFiles[f]);
 			}
 	
-			_pixi.loader.add('shark', 'assets/shark.png');
-			_pixi.loader.add('bubble', 'assets/bubble.png');
-			_pixi.loader.add('displacement_map', 'assets/displacement_map.png');
+			_pixi.loader.add('shark', '/assets/shark.png');
+			_pixi.loader.add('bubble', '/assets/bubble.png');
+			_pixi.loader.add('flipper1', '/assets/flipper1.png');
+			_pixi.loader.add('flipper2', '/assets/flipper2.png');
 	
 			_pixi.loader.load();
 		});
 	}
 	
 	// thottles scroll events to 60fps
-	var updateScroll = (0, _lodash2.default)(function () {
+	var updateScroll = (0, _throttle3.default)(function () {
 		var newScroll = (0, _jquery2.default)(document).scrollTop();
 		scrollOffset += scroll - newScroll;
 		scroll = newScroll;
@@ -309,25 +332,39 @@
 	}, 1000 / 60);
 	
 	function updateCurrentFocusBounds() {
-		if (!$currentFocus) return;
-		var offset = $currentFocus.offset();
-		currentFocusBounds = {
-			width: $currentFocus.width(),
-			height: $currentFocus.height(),
-			left: offset.left,
-			top: offset.top - scroll
-		};
-		currentFocusBounds.right = currentFocusBounds.left + currentFocusBounds.width;
-		currentFocusBounds.bottom = currentFocusBounds.top + currentFocusBounds.height;
+		if ($currentFocus) {
+			var offset = $currentFocus[0].getBoundingClientRect();
+			currentFocusBounds = {
+				width: $currentFocus.width(),
+				height: $currentFocus.height(),
+				left: offset.left,
+				top: offset.top
+			};
+			currentFocusBounds.right = currentFocusBounds.left + currentFocusBounds.width;
+			currentFocusBounds.bottom = currentFocusBounds.top + currentFocusBounds.height;
+		}
+		for (var n = 0; n < fishiesInstances.length; n++) {
+			var instance = fishiesInstances[n];
+			var _offset = instance.$container[0].getBoundingClientRect();
+			instance.left = _offset.left;
+			instance.top = _offset.top;
+		}
 		focusOscillation = 0;
 	}
 	
 	function rendererResize() {
-		width = $fishiesContainer.width();
-		height = $fishiesContainer.height();
-		canvas.style.width = width + 'px';
-		canvas.style.height = height + 'px';
-		renderer.resize(width, height);
+		windowHeight = (0, _jquery2.default)(window).height();
+		for (var n = 0; n < fishiesInstances.length; n++) {
+			var instance = fishiesInstances[n];
+			var offset = instance.$container.offset();
+			instance.width = instance.$container.width();
+			instance.height = instance.$container.height();
+			instance.left = offset.left;
+			instance.top = offset.top;
+			instance.renderer.resize(instance.width, instance.height);
+			instance.canvas.style.width = instance.width + 'px';
+			instance.canvas.style.height = instance.height + 'px';
+		}
 		updateCurrentFocusBounds();
 	}
 	
@@ -344,26 +381,32 @@
 				case 'bubble':
 					bubbleTexture = resources[key].texture;
 					break;
-				case 'displacement_map':
-					displacementSprite = new _pixi.Sprite(resources[key].texture);
-					displacementFilter = new _pixi2.default.filters.DisplacementFilter(displacementSprite);
-					displacementFilter.scale.x = displacementFilter.scale.y = vars.waterIntensity;
-					break;
 				case 'shark':
-					var bendPoints = [];
-					for (var i = 0; i < vars.bendPoints; i++) {
-						bendPoints.push(new _Point2.default(i * (sharkWidth / vars.bendPoints), 0));
+					for (var n = 0; n < fishiesInstances.length; n++) {
+						var instance = fishiesInstances[n];
+						var bendPoints = [];
+						for (var i = 0; i < vars.bendPoints; i++) {
+							bendPoints.push(new _Point2.default(i * (sharkWidth / vars.bendPoints), vars.sharpSpineOffsetY));
+						}
+						instance.shark = new _pixi.Container();
+						instance.sharkSprite = new _pixi2.default.mesh.Rope(resources[key].texture, bendPoints);
+						instance.sharkSprite.bendPoints = bendPoints;
+						instance.shark.anchor = { x: 0.5, y: 0.4 };
+						instance.shark.position.x = Math.random() * instance.width;
+						instance.shark.position.y = Math.random() * instance.height;
+						instance.shark.rotation = Math.random() * Math.PI * 2;
+						instance.shark.rotationCount = 0;
+						instance.shark.scale = new _Point2.default(-vars.sharkScale, vars.sharkScale * 2);
+						instance.shark.acceleration = new _Point2.default();
+						instance.shark.velocity = new _Point2.default(Math.cos(instance.sharkSprite.rotation), Math.sin(instance.sharkSprite.rotation));
+						instance.sharks.push(instance.shark);
 					}
-					sharkSprite = new _pixi2.default.mesh.Rope(resources[key].texture, bendPoints);
-					sharkSprite.bendPoints = bendPoints;
-					sharkSprite.anchor = { x: 0.3, y: 0.8 };
-					sharkSprite.position.x = Math.random() * width;
-					sharkSprite.position.y = Math.random() * height;
-					sharkSprite.rotation = Math.random() * Math.PI * 2;
-					sharkSprite.scale = new _Point2.default(-vars.sharkScale, vars.sharkScale);
-					sharkSprite.acceleration = new _Point2.default();
-					sharkSprite.velocity = new _Point2.default(Math.cos(sharkSprite.rotation), Math.sin(sharkSprite.rotation));
-					sharks.push(sharkSprite);
+					break;
+				case 'flipper1':
+					flipperTexture1 = resources[key].texture;
+					break;
+				case 'flipper2':
+					flipperTexture2 = resources[key].texture;
 					break;
 				default:
 					var fishSprite = new _pixi.Sprite(resources[key].texture);
@@ -378,460 +421,406 @@
 	
 	function initScene() {
 	
-		stage.addChild(zonesContainer);
-		stage.addChild(bubblesContainer);
+		for (var n = 0; n < fishiesInstances.length; n++) {
+			var instance = fishiesInstances[n];
+			instance.masterStage.addChild(instance.stage);
+			instance.zonesContainer.addChild(instance.zonesGraphic);
+			instance.zonesContainer.addChild(instance.velocitiesGraphic);
+			instance.stage.addChild(instance.zonesContainer);
+			instance.stage.addChild(instance.bubblesContainer);
+			instance.stage.addChild(instance.bubblesContainer);
+			instance.stage.addChild(instance.sharksContainer);
+			instance.stage.addChild(instance.fishiesContainer);
+			if (vars.waterEffect) instance.stage.filters = [instance.displacementFilter];
+			// instance.flipperSprite1 = new Sprite(flipperTexture1);
+			//
+			var bendPoints = [];
+			for (var i = 0; i < vars.bendPoints; i++) {
+				bendPoints.push(new _Point2.default(i * (200 / vars.bendPoints), 0));
+			}
+			instance.flipperSprite1 = new _pixi2.default.mesh.Rope(flipperTexture1, bendPoints);
+			instance.flipperSprite1.bendPoints = bendPoints;
+			instance.flipperSprite1.anchor = { x: 0.2, y: 0.22 };
+			instance.flipperSprite1.rotation = 0.6;
+			instance.flipperSprite1.position.set(100, 80);
+			instance.flipperSprite2 = new _pixi.Sprite(flipperTexture2);
+			instance.flipperSprite2.anchor.set(0.3, 0.2);
+			instance.flipperSprite2.position.set(330, 95);
+			instance.shark.addChild(instance.flipperSprite2);
+			instance.shark.addChild(instance.sharkSprite);
+			instance.shark.addChild(instance.flipperSprite1);
 	
-		// generate all fish sprites from the loaded images
-		for (var i = 0; i < vars.numFishies; i++) {
-			var fishSprite = initFish(i);
-			stage.addChild(fishSprite);
-			fishies.push(fishSprite);
+			(0, _jquery2.default)(instance.canvas).addClass('reveal');
+	
+			// generate all fish sprites from the loaded images
+			for (var _i = 0; _i < vars.numFishies; _i++) {
+				var fishSprite = initFish(_i, instance);
+				fishSprite.rotation = _i < vars.numFishies / 2 ? 0 : Math.PI;
+				instance.fishiesContainer.addChild(fishSprite);
+				instance.fishies.push(fishSprite);
+			}
 		}
 	
 		animate();
 	}
 	
-	function initFish(i) {
+	function initFish(i, instance) {
 		var bendPoints = [];
-		for (var _i = 0; _i < vars.bendPoints; _i++) {
-			bendPoints.push(new _Point2.default(_i * (fishWidth / vars.bendPoints), 0));
+		for (var _i2 = 0; _i2 < vars.bendPoints; _i2++) {
+			bendPoints.push(new _Point2.default(_i2 * (fishWidth / vars.bendPoints), 0));
 		}
 		var fishSprite = new _pixi2.default.mesh.Rope(fishSprites[i % fishSprites.length].texture, bendPoints);
 		fishSprite.bendPoints = bendPoints;
 		fishSprite.key = i;
 		fishSprite.type = i % fishSprites.length;
 		fishSprite.anchor = new _Point2.default(0.25, 0.5);
-		fishSprite.position.x = Math.random() * width;
-		fishSprite.position.y = Math.random() * height;
+		fishSprite.position.x = Math.random() * instance.width;
+		fishSprite.position.y = Math.random() * instance.height;
 		fishSprite.rotation = Math.random() * Math.PI * 2;
-		fishSprite.scale = new _Point2.default(-vars.fishScale, vars.fishScale);
+		fishSprite.scale.set(vars.fishScale);
 		fishSprite.acceleration = new _Point2.default();
 		fishSprite.velocity = new _Point2.default(Math.cos(fishSprite.rotation), Math.sin(fishSprite.rotation));
-		fishSprite.buttonMode = true;
-		fishSprite.interactive = true;
-		fishSprite.on('mouseover', function () {
-			return fishSprite.over = true;
-		});
-		fishSprite.on('mouseout', function () {
-			return fishSprite.over = false;
-		});
+		fishSprite.rotationCount = 0;
+		// fishSprite.buttonMode = true;
+		// fishSprite.interactive = true;
+		// fishSprite.on('mouseover', () => fishSprite.over = true);
+		// fishSprite.on('mouseout', () => fishSprite.over = false);
 		return fishSprite;
 	}
 	
 	var sharkTail = 0;
 	var fishTail = 0;
+	var seperationOscillator = 0;
+	var desiredSeparation = vars.desiredSeparation;
 	function animate() {
+		if (!animating) return;
+	
 		sharkTail += vars.sharkTailSpeed;
 		fishTail += vars.fishTailSpeed;
+		zoneCalcThrottleCount++;
+		seperationOscillator += 0.1;
+		// desiredSeparation = vars.desiredSeparation + Math.cos(seperationOscillator)*(vars.desiredSeparation/2);
 	
-		displacementFilter.scale.x = displacementFilter.scale.y = vars.waterIntensity;
-		displacementSprite.anchor.x = displacementSprite.anchor.y += vars.waterSpeed / 1000;
-		stage.filters = vars.waterEffect ? [displacementFilter] : null;
+		var _loop = function _loop(n) {
+			var instance = fishiesInstances[n];
+			instance.animating = instance.top < windowHeight + 50 && instance.top + instance.height > -50;
+			if (instance.animating) {
 	
-		// calculate zones
-		if (++zoneCalcThrottleCount >= vars.zoneCalcThrottle) {
-			zoneCalcThrottleCount = 0;
+				var globalSpriteScale = instance.width < 640 ? 0.5 : 1;
 	
-			// maintain correct amount of fish
-			var excess = fishies.length - vars.numFishies;
-			if (excess > 0) {
-				for (var i = 0; i < excess; i++) {
-					var fishSprite = fishies[fishies.length - 1 - excess + i];
-					stage.removeChild(fishSprite);
-					fishies.splice(fishies.indexOf(fishSprite), 1);
-				}
-			} else if (excess < 0) {
-				for (var _i2 = 0; _i2 < Math.abs(excess); _i2++) {
-					var _fishSprite = initFish(fishies.length + _i2);
-					stage.addChild(_fishSprite);
-					fishies.push(_fishSprite);
-				}
-			}
+				// calculate zones
+				if (zoneCalcThrottleCount >= vars.zoneCalcThrottle) {
+					zoneCalcThrottleCount = 0;
 	
-			// reset debug labels etc.
-			(zonesContainer.labels || []).map(function (label) {
-				return zonesContainer.removeChild(label);
-			});
-			zonesContainer.labels = [];
-			zonesGraphic.clear();
-			zonesGraphic.lineStyle(2, 0xFFFFFF, 0.5);
-	
-			var _loop = function _loop(row) {
-				var zoneY = row * vars.zoneSize;
-				zones[row] = [];
-	
-				// draw row quadrant
-				if (vars.showZones) {
-					zonesGraphic.moveTo(0, zoneY);
-					zonesGraphic.lineTo(width, zoneY);
-				}
-	
-				var _loop2 = function _loop2(col) {
-					var zoneX = col * vars.zoneSize;
-	
-					// draw column quadrant
-					if (vars.showZones) {
-						zonesGraphic.moveTo(zoneX, 0);
-						zonesGraphic.lineTo(zoneX, height);
+					// maintain correct amount of fish
+					var fishDensity = Math.ceil(10 + instance.width * instance.height / (1000 * vars.numFishies));
+					var excess = instance.fishies.length - fishDensity;
+					if (excess > 0) {
+						for (var i = 0; i < excess; i++) {
+							var fishSprite = instance.fishies[instance.fishies.length - 1 - excess + i];
+							instance.fishiesContainer.removeChild(fishSprite);
+							instance.fishies.splice(instance.fishies.indexOf(fishSprite), 1);
+						}
+					} else if (excess < 0) {
+						for (var _i3 = 0; _i3 < Math.abs(excess); _i3++) {
+							var _fishSprite = initFish(instance.fishies.length + _i3, instance);
+							instance.fishiesContainer.addChild(_fishSprite);
+							instance.fishies.push(_fishSprite);
+						}
 					}
 	
-					// update quadrant info
-					var children = [].concat(fishies, sharks).filter(function (fish) {
-						return fish.position.x > zoneX && fish.position.x < zoneX + vars.zoneSize && fish.position.y > zoneY && fish.position.y < zoneY + vars.zoneSize;
+					// reset debug labels etc.
+					(instance.zonesContainer.labels || []).map(function (label) {
+						return instance.zonesContainer.removeChild(label);
 					});
-					var count = children.length;
-					var center = children.reduce(function (point, current) {
-						return point.add({ x: current.position.x / count, y: current.position.y / count });
-					}, new _Point2.default());
-					zones[row][col] = { row: row, col: col, children: children, center: center, count: count };
+					instance.zonesContainer.labels = [];
+					instance.zonesGraphic.clear();
+					instance.zonesGraphic.lineStyle(2, 0xFFFFFF, 0.5);
 	
-					var _iteratorNormalCompletion4 = true;
-					var _didIteratorError4 = false;
-					var _iteratorError4 = undefined;
+					var _loop2 = function _loop2(row) {
+						var zoneY = row * vars.zoneSize;
+						instance.zones[row] = [];
 	
-					try {
-						for (var _iterator4 = children[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
-							var _fish = _step4.value;
-	
-							_fish.zone = [row, col];
+						// draw row quadrant
+						if (vars.showZones) {
+							instance.zonesGraphic.moveTo(0, zoneY);
+							instance.zonesGraphic.lineTo(width, zoneY);
 						}
 	
-						// display labels
-					} catch (err) {
-						_didIteratorError4 = true;
-						_iteratorError4 = err;
-					} finally {
-						try {
-							if (!_iteratorNormalCompletion4 && _iterator4.return) {
-								_iterator4.return();
-							}
-						} finally {
-							if (_didIteratorError4) {
-								throw _iteratorError4;
-							}
-						}
-					}
+						var _loop3 = function _loop3(col) {
+							var zoneX = col * vars.zoneSize;
 	
-					if (vars.showZones) {
-						var label = new _pixi.Text(children.length + ' fishies', { font: '12px sans-serif', fill: 0xFFFFFF });
-						label.position = new _Point2.default(zoneX + 10, zoneY + 10);
-						zonesContainer.addChild(label);
-						zonesContainer.labels.push(label);
-	
-						var pt = new _pixi.Graphics();
-						pt.beginFill(0xFFFFFF);
-						pt.drawCircle(0, 0, 10);
-						pt.position = center;
-						zonesContainer.addChild(pt);
-						zonesContainer.labels.push(pt);
-					}
-				};
-	
-				for (var col = 0; col < width / vars.zoneSize; col++) {
-					_loop2(col);
-				}
-			};
-	
-			for (var row = 0; row < height / vars.zoneSize; row++) {
-				_loop(row);
-			}
-	
-			// show neighbouring fish if hovering
-			if (vars.showZones) {
-				var _iteratorNormalCompletion2 = true;
-				var _didIteratorError2 = false;
-				var _iteratorError2 = undefined;
-	
-				try {
-					for (var _iterator2 = fishies[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-						var fish = _step2.value;
-	
-						if (fish.over) {
-							var surroundingFishies = getSurroundingFishies(fish.zone);
-							var nearGraphic = new _pixi.Graphics();
-							nearGraphic.lineStyle(1, 0xFFFFFF, 0.5);
-							var _iteratorNormalCompletion3 = true;
-							var _didIteratorError3 = false;
-							var _iteratorError3 = undefined;
-	
-							try {
-								for (var _iterator3 = surroundingFishies[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
-									var friend = _step3.value;
-	
-									nearGraphic.moveTo(fish.position.x, fish.position.y);
-									nearGraphic.lineTo(friend.position.x, friend.position.y);
-								}
-							} catch (err) {
-								_didIteratorError3 = true;
-								_iteratorError3 = err;
-							} finally {
-								try {
-									if (!_iteratorNormalCompletion3 && _iterator3.return) {
-										_iterator3.return();
-									}
-								} finally {
-									if (_didIteratorError3) {
-										throw _iteratorError3;
-									}
-								}
+							// draw column quadrant
+							if (vars.showZones) {
+								instance.zonesGraphic.moveTo(zoneX, 0);
+								instance.zonesGraphic.lineTo(zoneX, height);
 							}
 	
-							zonesContainer.addChild(nearGraphic);
-							zonesContainer.labels.push(nearGraphic);
+							// update quadrant info
+							var children = [].concat(_toConsumableArray(instance.fishies), _toConsumableArray(instance.sharks)).filter(function (fish) {
+								return fish.position.x > zoneX && fish.position.x < zoneX + vars.zoneSize && fish.position.y > zoneY && fish.position.y < zoneY + vars.zoneSize;
+							});
+							var count = children.length;
+							var center = children.reduce(function (point, current) {
+								return point.add({ x: current.position.x / count, y: current.position.y / count });
+							}, new _Point2.default());
+							instance.zones[row][col] = { row: row, col: col, children: children, center: center, count: count };
+	
+							for (var z = 0; z < children.length; z++) {
+								children[z].zone = [row, col];
+							}
+	
+							// display labels
+							if (vars.showZones) {
+								var label = new _pixi.Text(children.length + ' fishies', { font: '12px sans-serif', fill: 0xFFFFFF });
+								label.position = new _Point2.default(zoneX + 10, zoneY + 10);
+								instance.zonesContainer.addChild(label);
+								instance.zonesContainer.labels.push(label);
+	
+								var pt = new _pixi.Graphics();
+								pt.beginFill(0xFFFFFF);
+								pt.drawCircle(0, 0, 10);
+								pt.position = center;
+								instance.zonesContainer.addChild(pt);
+								instance.zonesContainer.labels.push(pt);
+							}
+						};
+	
+						for (var col = 0; col < instance.width / vars.zoneSize; col++) {
+							_loop3(col);
+						}
+					};
+	
+					for (var row = 0; row < instance.height / vars.zoneSize; row++) {
+						_loop2(row);
+					}
+				}
+	
+				for (var b = 0; b < instance.bubbles.length; b++) {
+					var bubble = instance.bubbles[b];
+					bubble.position.y -= (instance.height - bubble.position.y) / 70;
+					bubble.position.y += scrollOffset;
+					if (bubble.position.y < -vars.offscreen) {
+						instance.bubblesContainer.removeChild(bubble);
+						instance.bubbles.splice(instance.bubbles.indexOf(bubble), 1);
+					}
+				}
+	
+				if (vars.showShark) {
+					if (instance.stage.children.indexOf(instance.shark) < 0) instance.stage.addChild(instance.shark);
+					for (var s = 0; s < instance.sharks.length; s++) {
+						var shark = instance.sharks[s];
+	
+						if (shark.position.x < -vars.sharkOffscreen) {
+							shark.position.x = instance.width + vars.sharkOffscreen - 20;
+							shark.rotation = shark.aimRotation = Math.PI + Math.random() * 0.6 - 0.3;
+						}
+						if (shark.position.x > instance.width + vars.sharkOffscreen) {
+							shark.position.x = -vars.sharkOffscreen + 20;
+							shark.rotation = shark.aimRotation = Math.random() * 0.6 - 0.3;
+						}
+						if (shark.position.y < -vars.sharkOffscreen) shark.position.y = instance.height + vars.sharkOffscreen - (-vars.sharkOffscreen - shark.position.y);
+						if (shark.position.y > instance.height + vars.sharkOffscreen) shark.position.y = -vars.sharkOffscreen - (instance.height + vars.sharkOffscreen - shark.position.y);
+	
+						// shark.position.y += scrollOffset;
+	
+						// const surroundingFishies = getSurroundingFishies(shark.zone);
+						var cohesionForce = cohesion(shark, instance.fishies, true);
+						var forwardMovementForce = new _Point2.default(Math.cos(shark.rotation), Math.sin(shark.rotation));
+						cohesionForce.multiply(vars.sharkHungerMultiple);
+						forwardMovementForce.multiply(vars.sharkForwardMovementMultiple);
+						shark.acceleration.add(cohesionForce, forwardMovementForce);
+						shark.velocity.add(shark.acceleration);
+						shark.velocity.limit(vars.sharkMaxSpeed);
+						shark.velocity.multiply(globalSpriteScale);
+	
+						// reposition shark
+						shark.position.x += shark.velocity.x * vars.globalSpeedMultiple;
+						shark.position.y += shark.velocity.y * vars.globalSpeedMultiple;
+	
+						// reset acceleration each frame
+						shark.acceleration.multiply(0);
+	
+						// ease to correct rotation
+						var lastAimRotation = shark.aimRotation;
+						shark.aimRotation = Math.atan2(shark.velocity.y, shark.velocity.x);
+	
+						var modAimRotation = shark.aimRotation % PI2;
+						var modLastAimRotation = lastAimRotation % PI2;
+						if (Math.abs(modLastAimRotation - modAimRotation) > Math.PI) {
+							if (modAimRotation < modLastAimRotation) shark.rotationCount++;else shark.rotationCount--;
+							shark.rotationCount %= 2; // stop turtle from "flipping out"... get it??
+						}
+	
+						var diff = shark.aimRotation + shark.rotationCount * PI2 - shark.rotation;
+						if (diff > PI) diff -= PI2;
+						if (diff < -PI) diff += PI2;
+						shark.rotation += diff / vars.rotationEase;
+	
+						shark.scale.x = -vars.sharkScale * globalSpriteScale;
+	
+						// instance.flipperSprite1.rotation = Math.sin(sharkTail)*0.2 + 0.1;
+						instance.flipperSprite2.rotation = Math.sin(sharkTail + 0.2) * 0.1;
+	
+						// wag tail
+						for (var _i4 = 0; _i4 < vars.bendPoints / 2; _i4++) {
+							instance.sharkSprite.bendPoints[Math.floor(vars.bendPoints / 2 + _i4)].y = vars.sharpSpineOffsetY + _i4 * 2 + Math.cos(sharkTail) * Math.pow(vars.sharkTailMovement * _i4, 1.4);
+						}
+						for (var _i5 = 0; _i5 < vars.bendPoints; _i5++) {
+							instance.flipperSprite1.bendPoints[_i5].y = _i5 * 2 + Math.cos(sharkTail) * Math.pow(vars.sharkTailMovement * _i5, 1.8);
+						}
+	
+						var absRotation = shark.rotation % PI2;
+						shark.scale.y = (absRotation > PI / 2 && absRotation < PI * 1.5 ? -vars.sharkScale : vars.sharkScale) * globalSpriteScale;
+	
+						// maybe blow a bubble
+						if (Math.random() < vars.sharkBubbleProbability) {
+							var _bubble = new _pixi.Sprite(bubbleTexture);
+							_bubble.scale.set(vars.bubbleSize * globalSpriteScale);
+							_bubble.position = { x: shark.position.x, y: shark.position.y };
+							instance.bubblesContainer.addChild(_bubble);
+							instance.bubbles.push(_bubble);
 						}
 					}
-				} catch (err) {
-					_didIteratorError2 = true;
-					_iteratorError2 = err;
-				} finally {
-					try {
-						if (!_iteratorNormalCompletion2 && _iterator2.return) {
-							_iterator2.return();
-						}
-					} finally {
-						if (_didIteratorError2) {
-							throw _iteratorError2;
-						}
+				} else {
+					if (instance.stage.children.indexOf(instance.shark) > -1) instance.stage.removeChild(instance.shark);
+				}
+	
+				if (vars.showZones) instance.velocitiesGraphic.clear();
+				focusOscillation += -vars.focusOscillationSpeed;
+	
+				// iterate over the fishies!
+				for (var f = 0; f < instance.fishies.length; f++) {
+					var fish = instance.fishies[f];
+	
+					// keep in bounds
+					if (fish.position.x < -vars.offscreen) {
+						fish.position.x = instance.width + vars.offscreen;
+						fish.position.y = Math.round(Math.random() * instance.height);
 					}
-				}
-			}
-		}
+					if (fish.position.x > instance.width + vars.offscreen) {
+						fish.position.x = -vars.offscreen;
+						fish.position.y = Math.round(Math.random() * instance.height);
+					}
+					if (fish.position.y < -vars.offscreen) {
+						fish.position.y = instance.height + vars.offscreen - (-vars.offscreen - fish.position.y);
+						// fish.position.x = Math.round(Math.random()*instance.width); // randomize x position
+					}
+					if (fish.position.y > instance.height + vars.offscreen) {
+						fish.position.y = -vars.offscreen - (instance.height + vars.offscreen - fish.position.y);
+						// fish.position.x = Math.round(Math.random()*instance.width); // randomize x position
+					}
 	
-		var _iteratorNormalCompletion5 = true;
-		var _didIteratorError5 = false;
-		var _iteratorError5 = undefined;
+					// fish.position.y += scrollOffset/parallax;
 	
-		try {
-			for (var _iterator5 = bubbles[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
-				var bubble = _step5.value;
+					// calculate flocking forces
+					var surroundingFishies = getSurroundingFishies(fish.zone, instance.zones);
+					var seperationForce = seperation(fish, surroundingFishies);
+					var sharkFearForce = seperation(fish, instance.sharks, true);
+					var _cohesionForce = cohesion(fish, surroundingFishies);
+					var alignmentForce = alignment(fish, surroundingFishies);
+					var currentFocusForce = focusCohesion(fish, instance);
+					var _forwardMovementForce = new _Point2.default(Math.cos(fish.rotation), Math.sin(fish.rotation));
 	
-				bubble.position.y -= (height - bubble.position.y) / 70;
-				bubble.position.y += scrollOffset;
-				if (bubble.position.y < -vars.offscreen) {
-					bubblesContainer.removeChild(bubble);
-					bubbles.splice(bubbles.indexOf(bubble), 1);
-				}
-			}
-		} catch (err) {
-			_didIteratorError5 = true;
-			_iteratorError5 = err;
-		} finally {
-			try {
-				if (!_iteratorNormalCompletion5 && _iterator5.return) {
-					_iterator5.return();
-				}
-			} finally {
-				if (_didIteratorError5) {
-					throw _iteratorError5;
-				}
-			}
-		}
+					// weight each force
+					sharkFearForce.multiply(vars.sharkFearMultiple);
+					seperationForce.multiply(vars.seperationMultiple);
+					_cohesionForce.multiply(vars.cohesionMultiple);
+					alignmentForce.multiply(vars.alignmentMultiple);
+					currentFocusForce.multiply(vars.focusCohesionMultiple);
+					_forwardMovementForce.multiply(vars.forwardMovementMultiple * (surroundingFishies.length / 4));
 	
-		if (vars.showShark) {
-			if (stage.children.indexOf(sharkSprite) < 0) stage.addChild(sharkSprite);
-			var _iteratorNormalCompletion6 = true;
-			var _didIteratorError6 = false;
-			var _iteratorError6 = undefined;
+					// adjust fish velocity
+					fish.acceleration.add(sharkFearForce, seperationForce, _cohesionForce, alignmentForce, currentFocusForce, _forwardMovementForce);
+					fish.acceleration.multiply(globalSpriteScale);
+					fish.velocity.add(fish.acceleration);
+					fish.velocity.limit(vars.maxSpeed);
 	
-			try {
-				for (var _iterator6 = sharks[Symbol.iterator](), _step6; !(_iteratorNormalCompletion6 = (_step6 = _iterator6.next()).done); _iteratorNormalCompletion6 = true) {
-					var shark = _step6.value;
-	
-	
-					// if(shark.position.x < -vars.offscreen) shark.position.x = width + vars.offscreen;
-					// if(shark.position.x > width+vars.offscreen) shark.position.x = -vars.offscreen;
-					// if(shark.position.y < -vars.offscreen) shark.position.y = height + vars.offscreen - (-vars.offscreen - shark.position.y);
-					// if(shark.position.y > height+vars.offscreen) shark.position.y = -vars.offscreen - (height+vars.offscreen - shark.position.y);
-	
-					shark.position.y += scrollOffset;
-	
-					// const surroundingFishies = getSurroundingFishies(shark.zone);
-					var cohesionForce = cohesion(shark, fishies, true);
-					var forwardMovementForce = new _Point2.default(Math.cos(shark.rotation), Math.sin(shark.rotation));
-					cohesionForce.multiply(vars.sharkHungerMultiple);
-					forwardMovementForce.multiply(vars.sharkForwardMovementMultiple);
-					shark.acceleration.add(cohesionForce, forwardMovementForce);
-					shark.velocity.add(shark.acceleration);
-					shark.velocity.limit(vars.sharkMaxSpeed);
-	
-					// reposition shark
-					shark.position.x += shark.velocity.x * vars.globalSpeedMultiple;
-					shark.position.y += shark.velocity.y * vars.globalSpeedMultiple;
+					// reposition fish
+					fish.position.x += fish.velocity.x * vars.globalSpeedMultiple;
+					fish.position.y += fish.velocity.y * vars.globalSpeedMultiple;
 	
 					// reset acceleration each frame
-					shark.acceleration.multiply(0);
+					fish.acceleration.multiply(0);
 	
 					// ease to correct rotation
-					shark.aimRotation = Math.atan2(shark.velocity.y, shark.velocity.x);
-					if (shark.aimRotation < 0) shark.aimRotation += PI2;
-					var diff = shark.aimRotation - shark.rotation;
-					if (diff > PI) diff -= PI2;
-					if (diff < -PI) diff += PI2;
-					shark.rotation += diff / vars.rotationEase;
+					var _lastAimRotation = fish.aimRotation;
+					fish.aimRotation = Math.atan2(fish.velocity.y, fish.velocity.x);
 	
-					shark.scale.x = -vars.sharkScale;
-					shark.scale.y = vars.sharkScale;
+					var _modAimRotation = fish.aimRotation % PI2;
+					var _modLastAimRotation = _lastAimRotation % PI2;
+					if (Math.abs(_modLastAimRotation - _modAimRotation) > Math.PI) {
+						if (_modAimRotation < _modLastAimRotation) fish.rotationCount++;else fish.rotationCount--;
+					}
+	
+					var _diff = fish.aimRotation + fish.rotationCount * PI2 - fish.rotation;
+					if (_diff > PI) _diff -= PI2;
+					if (_diff < -PI) _diff += PI2;
+					fish.rotation += _diff / vars.rotationEase;
+	
+					// keep upright
+					var _absRotation = Math.abs(fish.rotation % PI2);
+					fish.scale.y = (_absRotation > PI / 2 && _absRotation < PI * 1.5 ? -vars.fishScale : vars.fishScale) * globalSpriteScale;
+					fish.scale.x = -vars.fishScale * globalSpriteScale;
 	
 					// wag tail
-					for (var _i3 = 0; _i3 < vars.bendPoints / 2; _i3++) {
-						shark.bendPoints[Math.floor(vars.bendPoints / 2 + _i3)].y = Math.cos(sharkTail) * Math.pow(vars.sharkTailMovement * _i3, 2);
+					for (var _i6 = 0; _i6 < vars.bendPoints / 2; _i6++) {
+						fish.bendPoints[Math.floor(vars.bendPoints / 2 + _i6)].y = Math.cos(fishTail + fish.key / 5) * Math.pow(vars.fishTailMovement * _i6, 2);
 					}
 	
-					// keep upright -- bugs out on shark don't know why...
-					// const absRotation = (shark.rotation%PI2);
-					// shark.scale.y = (absRotation > PI/2 && absRotation < PI*1.5) ? -vars.sharkScale : vars.sharkScale;
-				}
-			} catch (err) {
-				_didIteratorError6 = true;
-				_iteratorError6 = err;
-			} finally {
-				try {
-					if (!_iteratorNormalCompletion6 && _iterator6.return) {
-						_iterator6.return();
+					// maybe blow a bubble
+					if (Math.random() < vars.bubbleProbability) {
+						var _bubble2 = new _pixi.Sprite(bubbleTexture);
+						_bubble2.scale.set(vars.bubbleSize * globalSpriteScale);
+						_bubble2.position = { x: fish.position.x, y: fish.position.y };
+						instance.bubblesContainer.addChild(_bubble2);
+						instance.bubbles.push(_bubble2);
 					}
-				} finally {
-					if (_didIteratorError6) {
-						throw _iteratorError6;
+	
+					if (vars.showZones) {
+						var seperationAngle = Math.atan2(seperationForce.y, seperationForce.x);
+						var cohesionAngle = Math.atan2(_cohesionForce.y, _cohesionForce.x);
+						var alignmentAngle = Math.atan2(alignmentForce.y, alignmentForce.x);
+						if (seperationForce.x !== 0 && seperationForce.y !== 0) {
+							instance.velocitiesGraphic.lineStyle(3, 0xFF0000, 0.5);
+							instance.velocitiesGraphic.moveTo(fish.position.x, fish.position.y);
+							instance.velocitiesGraphic.lineTo(fish.position.x + Math.cos(seperationAngle) * 30, fish.position.y + Math.sin(seperationAngle) * 30);
+						}
+						instance.velocitiesGraphic.lineStyle(3, 0xe4c524, 1);
+						instance.velocitiesGraphic.moveTo(fish.position.x, fish.position.y);
+						instance.velocitiesGraphic.lineTo(fish.position.x + Math.cos(alignmentAngle) * 30, fish.position.y + Math.sin(alignmentAngle) * 30);
+						instance.velocitiesGraphic.lineStyle(3, 0x00FF00, 0.5);
+						instance.velocitiesGraphic.moveTo(fish.position.x, fish.position.y);
+						instance.velocitiesGraphic.lineTo(fish.position.x + Math.cos(cohesionAngle) * 30, fish.position.y + Math.sin(cohesionAngle) * 30);
 					}
 				}
+	
+				if (vars.waterEffect) {
+					// instance.displacementSprite.position.x = Math.cos(waterAmount)*vars.waterIntensity;
+					// instance.displacementSprite.position.y = Math.sin(waterAmount)*vars.waterIntensity;
+					// instance.displacementSprite.anchor.x += vars.waterSpeed;
+					// instance.displacementSprite.anchor.y += vars.waterSpeed;
+					// instance.stage.filters = [instance.displacementFilter];
+				}
+	
+				instance.renderer.render(instance.masterStage);
 			}
-		} else {
-				if (stage.children.indexOf(sharkSprite) > -1) stage.removeChild(sharkSprite);
-			}
+		};
 	
-		if (vars.showZones) velocitiesGraphic.clear();
-		focusOscillation += vars.focusOscillationSpeed;
-	
-		// iterate over the fishies!
-		var _iteratorNormalCompletion7 = true;
-		var _didIteratorError7 = false;
-		var _iteratorError7 = undefined;
-	
-		try {
-			for (var _iterator7 = fishies[Symbol.iterator](), _step7; !(_iteratorNormalCompletion7 = (_step7 = _iterator7.next()).done); _iteratorNormalCompletion7 = true) {
-				var _fish2 = _step7.value;
-	
-	
-				// keep in bounds
-				if (_fish2.position.x < -vars.offscreen) {
-					_fish2.position.x = width + vars.offscreen;
-					_fish2.position.y = Math.round(Math.random() * height);
-				}
-				if (_fish2.position.x > width + vars.offscreen) {
-					_fish2.position.x = -vars.offscreen;
-					_fish2.position.y = Math.round(Math.random() * height);
-				}
-				if (_fish2.position.y < -vars.offscreen) {
-					_fish2.position.y = height + vars.offscreen - (-vars.offscreen - _fish2.position.y);
-					_fish2.position.x = Math.round(Math.random() * width); // randomize x position
-				}
-				if (_fish2.position.y > height + vars.offscreen) {
-					_fish2.position.y = -vars.offscreen - (height + vars.offscreen - _fish2.position.y);
-					_fish2.position.x = Math.round(Math.random() * width); // randomize x position
-				}
-	
-				_fish2.position.y += scrollOffset;
-	
-				// calculate flocking forces
-				var _surroundingFishies = getSurroundingFishies(_fish2.zone);
-				var seperationForce = seperation(_fish2, _surroundingFishies);
-				var sharkFearForce = seperation(_fish2, sharks, true);
-				var _cohesionForce = cohesion(_fish2, _surroundingFishies);
-				var alignmentForce = alignment(_fish2, _surroundingFishies);
-				var currentFocusForce = focusCohesion(_fish2);
-				var _forwardMovementForce = new _Point2.default(Math.cos(_fish2.rotation), Math.sin(_fish2.rotation));
-	
-				// weight each force
-				sharkFearForce.multiply(vars.sharkFearMultiple);
-				seperationForce.multiply(vars.seperationMultiple);
-				_cohesionForce.multiply(vars.cohesionMultiple);
-				alignmentForce.multiply(vars.alignmentMultiple);
-				currentFocusForce.multiply(vars.focusCohesionMultiple);
-				_forwardMovementForce.multiply(vars.forwardMovementMultiple * (_surroundingFishies.length / 4));
-	
-				// adjust fish velocity
-				_fish2.acceleration.add(sharkFearForce, seperationForce, _cohesionForce, alignmentForce, currentFocusForce, _forwardMovementForce);
-				_fish2.velocity.add(_fish2.acceleration);
-				_fish2.velocity.limit(vars.maxSpeed);
-	
-				// reposition fish
-				_fish2.position.x += _fish2.velocity.x * vars.globalSpeedMultiple;
-				_fish2.position.y += _fish2.velocity.y * vars.globalSpeedMultiple;
-	
-				// reset acceleration each frame
-				_fish2.acceleration.multiply(0);
-	
-				// ease to correct rotation
-				_fish2.aimRotation = Math.atan2(_fish2.velocity.y, _fish2.velocity.x);
-				if (_fish2.aimRotation < 0) _fish2.aimRotation += PI2;
-				var _diff = _fish2.aimRotation - _fish2.rotation;
-				if (_diff > PI) _diff -= PI2;
-				if (_diff < -PI) _diff += PI2;
-				_fish2.rotation += _diff / vars.rotationEase;
-	
-				// keep upright
-				var absRotation = _fish2.rotation % PI2;
-				_fish2.scale.y = absRotation > PI / 2 && absRotation < PI * 1.5 ? -vars.fishScale : vars.fishScale;
-				_fish2.scale.x = -vars.fishScale;
-	
-				// wag tail
-				for (var _i4 = 0; _i4 < vars.bendPoints / 2; _i4++) {
-					_fish2.bendPoints[Math.floor(vars.bendPoints / 2 + _i4)].y = Math.cos(fishTail + _fish2.key / 5) * Math.pow(vars.fishTailMovement * _i4, 2);
-				}
-	
-				// maybe blow a bubble
-				if (Math.random() < vars.bubbleProbability) {
-					var _bubble = new _pixi.Sprite(bubbleTexture);
-					_bubble.scale.set(vars.bubbleSize);
-					_bubble.position = { x: _fish2.position.x, y: _fish2.position.y };
-					bubblesContainer.addChild(_bubble);
-					bubbles.push(_bubble);
-				}
-	
-				if (vars.showZones) {
-					var seperationAngle = Math.atan2(seperationForce.y, seperationForce.x);
-					var cohesionAngle = Math.atan2(_cohesionForce.y, _cohesionForce.x);
-					var alignmentAngle = Math.atan2(alignmentForce.y, alignmentForce.x);
-					if (seperationForce.x !== 0 && seperationForce.y !== 0) {
-						velocitiesGraphic.lineStyle(3, 0xFF0000, 0.5);
-						velocitiesGraphic.moveTo(_fish2.position.x, _fish2.position.y);
-						velocitiesGraphic.lineTo(_fish2.position.x + Math.cos(seperationAngle) * 30, _fish2.position.y + Math.sin(seperationAngle) * 30);
-					}
-					velocitiesGraphic.lineStyle(3, 0xe4c524, 1);
-					velocitiesGraphic.moveTo(_fish2.position.x, _fish2.position.y);
-					velocitiesGraphic.lineTo(_fish2.position.x + Math.cos(alignmentAngle) * 30, _fish2.position.y + Math.sin(alignmentAngle) * 30);
-					velocitiesGraphic.lineStyle(3, 0x00FF00, 0.5);
-					velocitiesGraphic.moveTo(_fish2.position.x, _fish2.position.y);
-					velocitiesGraphic.lineTo(_fish2.position.x + Math.cos(cohesionAngle) * 30, _fish2.position.y + Math.sin(cohesionAngle) * 30);
-				}
-			}
-		} catch (err) {
-			_didIteratorError7 = true;
-			_iteratorError7 = err;
-		} finally {
-			try {
-				if (!_iteratorNormalCompletion7 && _iterator7.return) {
-					_iterator7.return();
-				}
-			} finally {
-				if (_didIteratorError7) {
-					throw _iteratorError7;
-				}
-			}
+		for (var n = 0; n < fishiesInstances.length; n++) {
+			_loop(n);
 		}
 	
 		scrollOffset = 0;
-	
-		renderer.render(stage);
-		if (animating) window.requestAnimationFrame(animate);
+		window.requestAnimationFrame(animate);
 	}
 	
-	function focusCohesion(fish) {
+	function focusCohesion(fish, instance) {
 		var sum = new _Point2.default();
-		if (!$currentFocus || currentFocusBounds.top < 0 || currentFocusBounds.bottom > height) return sum;
+		if (!$currentFocus) return sum;
 	
 		var position = new _Point2.default(fish.position.x, fish.position.y);
-		var focusPosition = new _Point2.default(currentFocusBounds.left + currentFocusBounds.width / 2 + Math.cos(focusOscillation) * currentFocusBounds.width / 2, currentFocusBounds.top + currentFocusBounds.height / 2 + Math.sin(focusOscillation) * currentFocusBounds.height / 2);
+		var focusPosition = new _Point2.default(currentFocusBounds.left - instance.left + currentFocusBounds.width / 2 + Math.cos(focusOscillation) * currentFocusBounds.width * 2, currentFocusBounds.top - instance.top + currentFocusBounds.height * 2 + Math.sin(focusOscillation) * currentFocusBounds.height * 8);
 		var dist = position.distance(focusPosition);
 		sum.add(focusPosition);
 		return seek(fish, sum);
@@ -846,45 +835,24 @@
 	function seperation(fish, surroundingFishies) {
 		var isShark = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
 	
-		var desiredSeparation = isShark ? vars.sharkFearRadius : vars.desiredSeparation;
+		var seperationAmount = isShark ? vars.sharkFearRadius : desiredSeparation;
 		var steer = new _Point2.default();
-		var _iteratorNormalCompletion8 = true;
-		var _didIteratorError8 = false;
-		var _iteratorError8 = undefined;
-	
-		try {
-			for (var _iterator8 = surroundingFishies[Symbol.iterator](), _step8; !(_iteratorNormalCompletion8 = (_step8 = _iterator8.next()).done); _iteratorNormalCompletion8 = true) {
-				var friend = _step8.value;
-	
-				var position = new _Point2.default(fish.position.x, fish.position.y);
-				var dist = position.distance(friend.position);
-				var _count = 0;
-				if (dist > 0 && dist < desiredSeparation) {
-					_count++;
-					var diff = position.subtract(friend.position);
-					diff.normalize();
-					diff.divide(dist);
-					steer.add(diff);
-				}
-				if (_count > 0) {
-					steer.divide(_count);
-				}
+		for (var f = 0; f < surroundingFishies.length; f++) {
+			var friend = surroundingFishies[f];
+			var position = new _Point2.default(fish.position.x, fish.position.y);
+			var dist = position.distance(friend.position);
+			var _count = 0;
+			if (dist > 0 && dist < seperationAmount) {
+				_count++;
+				var diff = position.subtract(friend.position);
+				diff.normalize();
+				diff.divide(dist);
+				steer.add(diff);
 			}
-		} catch (err) {
-			_didIteratorError8 = true;
-			_iteratorError8 = err;
-		} finally {
-			try {
-				if (!_iteratorNormalCompletion8 && _iterator8.return) {
-					_iterator8.return();
-				}
-			} finally {
-				if (_didIteratorError8) {
-					throw _iteratorError8;
-				}
+			if (_count > 0) {
+				steer.divide(_count);
 			}
 		}
-	
 		return steer;
 	}
 	
@@ -901,38 +869,17 @@
 	
 		var sum = new _Point2.default();
 		var count = 0;
-		var _iteratorNormalCompletion9 = true;
-		var _didIteratorError9 = false;
-		var _iteratorError9 = undefined;
-	
-		try {
-			for (var _iterator9 = surroundingFishies[Symbol.iterator](), _step9; !(_iteratorNormalCompletion9 = (_step9 = _iterator9.next()).done); _iteratorNormalCompletion9 = true) {
-				var friend = _step9.value;
-	
-				if (!vars.preferOwnSpecies || vars.preferOwnSpecies && friend.type === fish.type) {
-					var position = new _Point2.default(fish.position.x, fish.position.y);
-					var dist = position.distance(friend.position);
-					if (dist > 0) {
-						sum.add(friend.velocity);
-						count++;
-					}
-				}
-			}
-		} catch (err) {
-			_didIteratorError9 = true;
-			_iteratorError9 = err;
-		} finally {
-			try {
-				if (!_iteratorNormalCompletion9 && _iterator9.return) {
-					_iterator9.return();
-				}
-			} finally {
-				if (_didIteratorError9) {
-					throw _iteratorError9;
+		for (var f = 0; f < surroundingFishies.length; f++) {
+			var friend = surroundingFishies[f];
+			if (!vars.preferOwnSpecies || vars.preferOwnSpecies && friend.type === fish.type) {
+				var position = new _Point2.default(fish.position.x, fish.position.y);
+				var dist = position.distance(friend.position);
+				if (dist > 0) {
+					sum.add(friend.velocity);
+					count++;
 				}
 			}
 		}
-	
 		if (count === 0) return new _Point2.default();
 	
 		sum.normalize();
@@ -948,38 +895,17 @@
 	
 		var sum = new _Point2.default();
 		var count = 0;
-		var _iteratorNormalCompletion10 = true;
-		var _didIteratorError10 = false;
-		var _iteratorError10 = undefined;
-	
-		try {
-			for (var _iterator10 = surroundingFishies[Symbol.iterator](), _step10; !(_iteratorNormalCompletion10 = (_step10 = _iterator10.next()).done); _iteratorNormalCompletion10 = true) {
-				var friend = _step10.value;
-	
-				if (isShark || !vars.preferOwnSpecies || vars.preferOwnSpecies && friend.type === fish.type) {
-					var position = new _Point2.default(fish.position.x, fish.position.y);
-					var dist = position.distance(friend.position);
-					if (dist > 0) {
-						sum.add(friend.position);
-						count++;
-					}
-				}
-			}
-		} catch (err) {
-			_didIteratorError10 = true;
-			_iteratorError10 = err;
-		} finally {
-			try {
-				if (!_iteratorNormalCompletion10 && _iterator10.return) {
-					_iterator10.return();
-				}
-			} finally {
-				if (_didIteratorError10) {
-					throw _iteratorError10;
+		for (var f = 0; f < surroundingFishies.length; f++) {
+			var friend = surroundingFishies[f];
+			if (isShark || !vars.preferOwnSpecies || vars.preferOwnSpecies && friend.type === fish.type) {
+				var position = new _Point2.default(fish.position.x, fish.position.y);
+				var dist = position.distance(friend.position);
+				if (dist > 0) {
+					sum.add(friend.position);
+					count++;
 				}
 			}
 		}
-	
 		if (count === 0) return new _Point2.default();
 		sum.divide(count);
 		return seek(fish, sum);
@@ -997,15 +923,15 @@
 	
 	// ended up being unused but could be useful
 	function getSurroundingZones(zone) {
-		var surroundingZones = [(0, _lodash4.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] - 1) + ']', null), // TL
-		(0, _lodash4.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] + 0) + ']', null), // ML
-		(0, _lodash4.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] + 1) + ']', null), // BL
-		(0, _lodash4.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] - 1) + ']', null), // TM
-		(0, _lodash4.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] + 0) + ']', null), // MM
-		(0, _lodash4.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] + 1) + ']', null), // BM
-		(0, _lodash4.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] - 1) + ']', null), // TR
-		(0, _lodash4.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] + 0) + ']', null), // MR
-		(0, _lodash4.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] + 1) + ']', null)];
+		var surroundingZones = [(0, _get3.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] - 1) + ']', null), // TL
+		(0, _get3.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] + 0) + ']', null), // ML
+		(0, _get3.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] + 1) + ']', null), // BL
+		(0, _get3.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] - 1) + ']', null), // TM
+		(0, _get3.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] + 0) + ']', null), // MM
+		(0, _get3.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] + 1) + ']', null), // BM
+		(0, _get3.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] - 1) + ']', null), // TR
+		(0, _get3.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] + 0) + ']', null), // MR
+		(0, _get3.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] + 1) + ']', null)];
 		// BR
 		return surroundingZones.filter(function (zone) {
 			return zone !== null;
@@ -1013,12 +939,18 @@
 	}
 	
 	// gets surrounding fish from a quadrant
-	function getSurroundingFishies(zone) {
-		return [].concat(_toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] - 1) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] + 0) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] + 1) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] - 1) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] + 0) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] + 1) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] - 1) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] + 0) + '].children', [])), _toConsumableArray((0, _lodash4.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] + 1) + '].children', [])));
+	function getSurroundingFishies(zone, zones) {
+		if (!zone || !zones) return [];
+		return [].concat(_toConsumableArray((0, _get3.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] - 1) + '].children', [])), _toConsumableArray((0, _get3.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] + 0) + '].children', [])), _toConsumableArray((0, _get3.default)(zones, '[' + (zone[0] - 1) + '][' + (zone[1] + 1) + '].children', [])), _toConsumableArray((0, _get3.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] - 1) + '].children', [])), _toConsumableArray((0, _get3.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] + 0) + '].children', [])), _toConsumableArray((0, _get3.default)(zones, '[' + (zone[0] + 0) + '][' + (zone[1] + 1) + '].children', [])), _toConsumableArray((0, _get3.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] - 1) + '].children', [])), _toConsumableArray((0, _get3.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] + 0) + '].children', [])), _toConsumableArray((0, _get3.default)(zones, '[' + (zone[0] + 1) + '][' + (zone[1] + 1) + '].children', [])));
 	}
 	
+	// init();
 	// BR
-	init();
+	if (vars.waterEffect) {
+		displacementImage.src = '/assets/fishies/displacement.png'; //displacementImageUrl;
+	} else {
+			init();
+		}
 
 /***/ },
 /* 1 */
@@ -42184,16 +42116,2068 @@
 
 /***/ },
 /* 142 */
+/*!******************************!*\
+  !*** ./~/lodash/throttle.js ***!
+  \******************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var debounce = __webpack_require__(/*! ./debounce */ 143),
+	    isObject = __webpack_require__(/*! ./isObject */ 144);
+	
+	/** Used as the `TypeError` message for "Functions" methods. */
+	var FUNC_ERROR_TEXT = 'Expected a function';
+	
+	/**
+	 * Creates a throttled function that only invokes `func` at most once per
+	 * every `wait` milliseconds. The throttled function comes with a `cancel`
+	 * method to cancel delayed `func` invocations and a `flush` method to
+	 * immediately invoke them. Provide an options object to indicate whether
+	 * `func` should be invoked on the leading and/or trailing edge of the `wait`
+	 * timeout. The `func` is invoked with the last arguments provided to the
+	 * throttled function. Subsequent calls to the throttled function return the
+	 * result of the last `func` invocation.
+	 *
+	 * **Note:** If `leading` and `trailing` options are `true`, `func` is
+	 * invoked on the trailing edge of the timeout only if the throttled function
+	 * is invoked more than once during the `wait` timeout.
+	 *
+	 * See [David Corbacho's article](https://css-tricks.com/debouncing-throttling-explained-examples/)
+	 * for details over the differences between `_.throttle` and `_.debounce`.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 0.1.0
+	 * @category Function
+	 * @param {Function} func The function to throttle.
+	 * @param {number} [wait=0] The number of milliseconds to throttle invocations to.
+	 * @param {Object} [options={}] The options object.
+	 * @param {boolean} [options.leading=true]
+	 *  Specify invoking on the leading edge of the timeout.
+	 * @param {boolean} [options.trailing=true]
+	 *  Specify invoking on the trailing edge of the timeout.
+	 * @returns {Function} Returns the new throttled function.
+	 * @example
+	 *
+	 * // Avoid excessively updating the position while scrolling.
+	 * jQuery(window).on('scroll', _.throttle(updatePosition, 100));
+	 *
+	 * // Invoke `renewToken` when the click event is fired, but not more than once every 5 minutes.
+	 * var throttled = _.throttle(renewToken, 300000, { 'trailing': false });
+	 * jQuery(element).on('click', throttled);
+	 *
+	 * // Cancel the trailing throttled invocation.
+	 * jQuery(window).on('popstate', throttled.cancel);
+	 */
+	function throttle(func, wait, options) {
+	  var leading = true,
+	      trailing = true;
+	
+	  if (typeof func != 'function') {
+	    throw new TypeError(FUNC_ERROR_TEXT);
+	  }
+	  if (isObject(options)) {
+	    leading = 'leading' in options ? !!options.leading : leading;
+	    trailing = 'trailing' in options ? !!options.trailing : trailing;
+	  }
+	  return debounce(func, wait, {
+	    'leading': leading,
+	    'maxWait': wait,
+	    'trailing': trailing
+	  });
+	}
+	
+	module.exports = throttle;
+
+
+/***/ },
+/* 143 */
+/*!******************************!*\
+  !*** ./~/lodash/debounce.js ***!
+  \******************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var isObject = __webpack_require__(/*! ./isObject */ 144),
+	    now = __webpack_require__(/*! ./now */ 145),
+	    toNumber = __webpack_require__(/*! ./toNumber */ 146);
+	
+	/** Used as the `TypeError` message for "Functions" methods. */
+	var FUNC_ERROR_TEXT = 'Expected a function';
+	
+	/* Built-in method references for those with the same name as other `lodash` methods. */
+	var nativeMax = Math.max,
+	    nativeMin = Math.min;
+	
+	/**
+	 * Creates a debounced function that delays invoking `func` until after `wait`
+	 * milliseconds have elapsed since the last time the debounced function was
+	 * invoked. The debounced function comes with a `cancel` method to cancel
+	 * delayed `func` invocations and a `flush` method to immediately invoke them.
+	 * Provide an options object to indicate whether `func` should be invoked on
+	 * the leading and/or trailing edge of the `wait` timeout. The `func` is invoked
+	 * with the last arguments provided to the debounced function. Subsequent calls
+	 * to the debounced function return the result of the last `func` invocation.
+	 *
+	 * **Note:** If `leading` and `trailing` options are `true`, `func` is invoked
+	 * on the trailing edge of the timeout only if the debounced function is
+	 * invoked more than once during the `wait` timeout.
+	 *
+	 * See [David Corbacho's article](https://css-tricks.com/debouncing-throttling-explained-examples/)
+	 * for details over the differences between `_.debounce` and `_.throttle`.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 0.1.0
+	 * @category Function
+	 * @param {Function} func The function to debounce.
+	 * @param {number} [wait=0] The number of milliseconds to delay.
+	 * @param {Object} [options={}] The options object.
+	 * @param {boolean} [options.leading=false]
+	 *  Specify invoking on the leading edge of the timeout.
+	 * @param {number} [options.maxWait]
+	 *  The maximum time `func` is allowed to be delayed before it's invoked.
+	 * @param {boolean} [options.trailing=true]
+	 *  Specify invoking on the trailing edge of the timeout.
+	 * @returns {Function} Returns the new debounced function.
+	 * @example
+	 *
+	 * // Avoid costly calculations while the window size is in flux.
+	 * jQuery(window).on('resize', _.debounce(calculateLayout, 150));
+	 *
+	 * // Invoke `sendMail` when clicked, debouncing subsequent calls.
+	 * jQuery(element).on('click', _.debounce(sendMail, 300, {
+	 *   'leading': true,
+	 *   'trailing': false
+	 * }));
+	 *
+	 * // Ensure `batchLog` is invoked once after 1 second of debounced calls.
+	 * var debounced = _.debounce(batchLog, 250, { 'maxWait': 1000 });
+	 * var source = new EventSource('/stream');
+	 * jQuery(source).on('message', debounced);
+	 *
+	 * // Cancel the trailing debounced invocation.
+	 * jQuery(window).on('popstate', debounced.cancel);
+	 */
+	function debounce(func, wait, options) {
+	  var lastArgs,
+	      lastThis,
+	      maxWait,
+	      result,
+	      timerId,
+	      lastCallTime,
+	      lastInvokeTime = 0,
+	      leading = false,
+	      maxing = false,
+	      trailing = true;
+	
+	  if (typeof func != 'function') {
+	    throw new TypeError(FUNC_ERROR_TEXT);
+	  }
+	  wait = toNumber(wait) || 0;
+	  if (isObject(options)) {
+	    leading = !!options.leading;
+	    maxing = 'maxWait' in options;
+	    maxWait = maxing ? nativeMax(toNumber(options.maxWait) || 0, wait) : maxWait;
+	    trailing = 'trailing' in options ? !!options.trailing : trailing;
+	  }
+	
+	  function invokeFunc(time) {
+	    var args = lastArgs,
+	        thisArg = lastThis;
+	
+	    lastArgs = lastThis = undefined;
+	    lastInvokeTime = time;
+	    result = func.apply(thisArg, args);
+	    return result;
+	  }
+	
+	  function leadingEdge(time) {
+	    // Reset any `maxWait` timer.
+	    lastInvokeTime = time;
+	    // Start the timer for the trailing edge.
+	    timerId = setTimeout(timerExpired, wait);
+	    // Invoke the leading edge.
+	    return leading ? invokeFunc(time) : result;
+	  }
+	
+	  function remainingWait(time) {
+	    var timeSinceLastCall = time - lastCallTime,
+	        timeSinceLastInvoke = time - lastInvokeTime,
+	        result = wait - timeSinceLastCall;
+	
+	    return maxing ? nativeMin(result, maxWait - timeSinceLastInvoke) : result;
+	  }
+	
+	  function shouldInvoke(time) {
+	    var timeSinceLastCall = time - lastCallTime,
+	        timeSinceLastInvoke = time - lastInvokeTime;
+	
+	    // Either this is the first call, activity has stopped and we're at the
+	    // trailing edge, the system time has gone backwards and we're treating
+	    // it as the trailing edge, or we've hit the `maxWait` limit.
+	    return (lastCallTime === undefined || (timeSinceLastCall >= wait) ||
+	      (timeSinceLastCall < 0) || (maxing && timeSinceLastInvoke >= maxWait));
+	  }
+	
+	  function timerExpired() {
+	    var time = now();
+	    if (shouldInvoke(time)) {
+	      return trailingEdge(time);
+	    }
+	    // Restart the timer.
+	    timerId = setTimeout(timerExpired, remainingWait(time));
+	  }
+	
+	  function trailingEdge(time) {
+	    timerId = undefined;
+	
+	    // Only invoke if we have `lastArgs` which means `func` has been
+	    // debounced at least once.
+	    if (trailing && lastArgs) {
+	      return invokeFunc(time);
+	    }
+	    lastArgs = lastThis = undefined;
+	    return result;
+	  }
+	
+	  function cancel() {
+	    lastInvokeTime = 0;
+	    lastArgs = lastCallTime = lastThis = timerId = undefined;
+	  }
+	
+	  function flush() {
+	    return timerId === undefined ? result : trailingEdge(now());
+	  }
+	
+	  function debounced() {
+	    var time = now(),
+	        isInvoking = shouldInvoke(time);
+	
+	    lastArgs = arguments;
+	    lastThis = this;
+	    lastCallTime = time;
+	
+	    if (isInvoking) {
+	      if (timerId === undefined) {
+	        return leadingEdge(lastCallTime);
+	      }
+	      if (maxing) {
+	        // Handle invocations in a tight loop.
+	        timerId = setTimeout(timerExpired, wait);
+	        return invokeFunc(lastCallTime);
+	      }
+	    }
+	    if (timerId === undefined) {
+	      timerId = setTimeout(timerExpired, wait);
+	    }
+	    return result;
+	  }
+	  debounced.cancel = cancel;
+	  debounced.flush = flush;
+	  return debounced;
+	}
+	
+	module.exports = debounce;
+
+
+/***/ },
+/* 144 */
+/*!******************************!*\
+  !*** ./~/lodash/isObject.js ***!
+  \******************************/
+/***/ function(module, exports) {
+
+	/**
+	 * Checks if `value` is the
+	 * [language type](http://www.ecma-international.org/ecma-262/6.0/#sec-ecmascript-language-types)
+	 * of `Object`. (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 0.1.0
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is an object, else `false`.
+	 * @example
+	 *
+	 * _.isObject({});
+	 * // => true
+	 *
+	 * _.isObject([1, 2, 3]);
+	 * // => true
+	 *
+	 * _.isObject(_.noop);
+	 * // => true
+	 *
+	 * _.isObject(null);
+	 * // => false
+	 */
+	function isObject(value) {
+	  var type = typeof value;
+	  return !!value && (type == 'object' || type == 'function');
+	}
+	
+	module.exports = isObject;
+
+
+/***/ },
+/* 145 */
+/*!*************************!*\
+  !*** ./~/lodash/now.js ***!
+  \*************************/
+/***/ function(module, exports) {
+
+	/**
+	 * Gets the timestamp of the number of milliseconds that have elapsed since
+	 * the Unix epoch (1 January 1970 00:00:00 UTC).
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 2.4.0
+	 * @category Date
+	 * @returns {number} Returns the timestamp.
+	 * @example
+	 *
+	 * _.defer(function(stamp) {
+	 *   console.log(_.now() - stamp);
+	 * }, _.now());
+	 * // => Logs the number of milliseconds it took for the deferred invocation.
+	 */
+	function now() {
+	  return Date.now();
+	}
+	
+	module.exports = now;
+
+
+/***/ },
+/* 146 */
+/*!******************************!*\
+  !*** ./~/lodash/toNumber.js ***!
+  \******************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var isFunction = __webpack_require__(/*! ./isFunction */ 147),
+	    isObject = __webpack_require__(/*! ./isObject */ 144),
+	    isSymbol = __webpack_require__(/*! ./isSymbol */ 148);
+	
+	/** Used as references for various `Number` constants. */
+	var NAN = 0 / 0;
+	
+	/** Used to match leading and trailing whitespace. */
+	var reTrim = /^\s+|\s+$/g;
+	
+	/** Used to detect bad signed hexadecimal string values. */
+	var reIsBadHex = /^[-+]0x[0-9a-f]+$/i;
+	
+	/** Used to detect binary string values. */
+	var reIsBinary = /^0b[01]+$/i;
+	
+	/** Used to detect octal string values. */
+	var reIsOctal = /^0o[0-7]+$/i;
+	
+	/** Built-in method references without a dependency on `root`. */
+	var freeParseInt = parseInt;
+	
+	/**
+	 * Converts `value` to a number.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 4.0.0
+	 * @category Lang
+	 * @param {*} value The value to process.
+	 * @returns {number} Returns the number.
+	 * @example
+	 *
+	 * _.toNumber(3.2);
+	 * // => 3.2
+	 *
+	 * _.toNumber(Number.MIN_VALUE);
+	 * // => 5e-324
+	 *
+	 * _.toNumber(Infinity);
+	 * // => Infinity
+	 *
+	 * _.toNumber('3.2');
+	 * // => 3.2
+	 */
+	function toNumber(value) {
+	  if (typeof value == 'number') {
+	    return value;
+	  }
+	  if (isSymbol(value)) {
+	    return NAN;
+	  }
+	  if (isObject(value)) {
+	    var other = isFunction(value.valueOf) ? value.valueOf() : value;
+	    value = isObject(other) ? (other + '') : other;
+	  }
+	  if (typeof value != 'string') {
+	    return value === 0 ? value : +value;
+	  }
+	  value = value.replace(reTrim, '');
+	  var isBinary = reIsBinary.test(value);
+	  return (isBinary || reIsOctal.test(value))
+	    ? freeParseInt(value.slice(2), isBinary ? 2 : 8)
+	    : (reIsBadHex.test(value) ? NAN : +value);
+	}
+	
+	module.exports = toNumber;
+
+
+/***/ },
+/* 147 */
+/*!********************************!*\
+  !*** ./~/lodash/isFunction.js ***!
+  \********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var isObject = __webpack_require__(/*! ./isObject */ 144);
+	
+	/** `Object#toString` result references. */
+	var funcTag = '[object Function]',
+	    genTag = '[object GeneratorFunction]';
+	
+	/** Used for built-in method references. */
+	var objectProto = Object.prototype;
+	
+	/**
+	 * Used to resolve the
+	 * [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
+	 * of values.
+	 */
+	var objectToString = objectProto.toString;
+	
+	/**
+	 * Checks if `value` is classified as a `Function` object.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 0.1.0
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is correctly classified,
+	 *  else `false`.
+	 * @example
+	 *
+	 * _.isFunction(_);
+	 * // => true
+	 *
+	 * _.isFunction(/abc/);
+	 * // => false
+	 */
+	function isFunction(value) {
+	  // The use of `Object#toString` avoids issues with the `typeof` operator
+	  // in Safari 8 which returns 'object' for typed array and weak map constructors,
+	  // and PhantomJS 1.9 which returns 'function' for `NodeList` instances.
+	  var tag = isObject(value) ? objectToString.call(value) : '';
+	  return tag == funcTag || tag == genTag;
+	}
+	
+	module.exports = isFunction;
+
+
+/***/ },
+/* 148 */
+/*!******************************!*\
+  !*** ./~/lodash/isSymbol.js ***!
+  \******************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var isObjectLike = __webpack_require__(/*! ./isObjectLike */ 149);
+	
+	/** `Object#toString` result references. */
+	var symbolTag = '[object Symbol]';
+	
+	/** Used for built-in method references. */
+	var objectProto = Object.prototype;
+	
+	/**
+	 * Used to resolve the
+	 * [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
+	 * of values.
+	 */
+	var objectToString = objectProto.toString;
+	
+	/**
+	 * Checks if `value` is classified as a `Symbol` primitive or object.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 4.0.0
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is correctly classified,
+	 *  else `false`.
+	 * @example
+	 *
+	 * _.isSymbol(Symbol.iterator);
+	 * // => true
+	 *
+	 * _.isSymbol('abc');
+	 * // => false
+	 */
+	function isSymbol(value) {
+	  return typeof value == 'symbol' ||
+	    (isObjectLike(value) && objectToString.call(value) == symbolTag);
+	}
+	
+	module.exports = isSymbol;
+
+
+/***/ },
+/* 149 */
+/*!**********************************!*\
+  !*** ./~/lodash/isObjectLike.js ***!
+  \**********************************/
+/***/ function(module, exports) {
+
+	/**
+	 * Checks if `value` is object-like. A value is object-like if it's not `null`
+	 * and has a `typeof` result of "object".
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 4.0.0
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
+	 * @example
+	 *
+	 * _.isObjectLike({});
+	 * // => true
+	 *
+	 * _.isObjectLike([1, 2, 3]);
+	 * // => true
+	 *
+	 * _.isObjectLike(_.noop);
+	 * // => false
+	 *
+	 * _.isObjectLike(null);
+	 * // => false
+	 */
+	function isObjectLike(value) {
+	  return !!value && typeof value == 'object';
+	}
+	
+	module.exports = isObjectLike;
+
+
+/***/ },
+/* 150 */
+/*!*************************!*\
+  !*** ./~/lodash/get.js ***!
+  \*************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var baseGet = __webpack_require__(/*! ./_baseGet */ 151);
+	
+	/**
+	 * Gets the value at `path` of `object`. If the resolved value is
+	 * `undefined`, the `defaultValue` is used in its place.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 3.7.0
+	 * @category Object
+	 * @param {Object} object The object to query.
+	 * @param {Array|string} path The path of the property to get.
+	 * @param {*} [defaultValue] The value returned for `undefined` resolved values.
+	 * @returns {*} Returns the resolved value.
+	 * @example
+	 *
+	 * var object = { 'a': [{ 'b': { 'c': 3 } }] };
+	 *
+	 * _.get(object, 'a[0].b.c');
+	 * // => 3
+	 *
+	 * _.get(object, ['a', '0', 'b', 'c']);
+	 * // => 3
+	 *
+	 * _.get(object, 'a.b.c', 'default');
+	 * // => 'default'
+	 */
+	function get(object, path, defaultValue) {
+	  var result = object == null ? undefined : baseGet(object, path);
+	  return result === undefined ? defaultValue : result;
+	}
+	
+	module.exports = get;
+
+
+/***/ },
+/* 151 */
+/*!******************************!*\
+  !*** ./~/lodash/_baseGet.js ***!
+  \******************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var castPath = __webpack_require__(/*! ./_castPath */ 152),
+	    isKey = __webpack_require__(/*! ./_isKey */ 192),
+	    toKey = __webpack_require__(/*! ./_toKey */ 193);
+	
+	/**
+	 * The base implementation of `_.get` without support for default values.
+	 *
+	 * @private
+	 * @param {Object} object The object to query.
+	 * @param {Array|string} path The path of the property to get.
+	 * @returns {*} Returns the resolved value.
+	 */
+	function baseGet(object, path) {
+	  path = isKey(path, object) ? [path] : castPath(path);
+	
+	  var index = 0,
+	      length = path.length;
+	
+	  while (object != null && index < length) {
+	    object = object[toKey(path[index++])];
+	  }
+	  return (index && index == length) ? object : undefined;
+	}
+	
+	module.exports = baseGet;
+
+
+/***/ },
+/* 152 */
+/*!*******************************!*\
+  !*** ./~/lodash/_castPath.js ***!
+  \*******************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var isArray = __webpack_require__(/*! ./isArray */ 153),
+	    stringToPath = __webpack_require__(/*! ./_stringToPath */ 154);
+	
+	/**
+	 * Casts `value` to a path array if it's not one.
+	 *
+	 * @private
+	 * @param {*} value The value to inspect.
+	 * @returns {Array} Returns the cast property path array.
+	 */
+	function castPath(value) {
+	  return isArray(value) ? value : stringToPath(value);
+	}
+	
+	module.exports = castPath;
+
+
+/***/ },
+/* 153 */
+/*!*****************************!*\
+  !*** ./~/lodash/isArray.js ***!
+  \*****************************/
+/***/ function(module, exports) {
+
+	/**
+	 * Checks if `value` is classified as an `Array` object.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 0.1.0
+	 * @type {Function}
+	 * @category Lang
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is correctly classified,
+	 *  else `false`.
+	 * @example
+	 *
+	 * _.isArray([1, 2, 3]);
+	 * // => true
+	 *
+	 * _.isArray(document.body.children);
+	 * // => false
+	 *
+	 * _.isArray('abc');
+	 * // => false
+	 *
+	 * _.isArray(_.noop);
+	 * // => false
+	 */
+	var isArray = Array.isArray;
+	
+	module.exports = isArray;
+
+
+/***/ },
+/* 154 */
+/*!***********************************!*\
+  !*** ./~/lodash/_stringToPath.js ***!
+  \***********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var memoize = __webpack_require__(/*! ./memoize */ 155),
+	    toString = __webpack_require__(/*! ./toString */ 189);
+	
+	/** Used to match property names within property paths. */
+	var rePropName = /[^.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]|(?=(\.|\[\])(?:\4|$))/g;
+	
+	/** Used to match backslashes in property paths. */
+	var reEscapeChar = /\\(\\)?/g;
+	
+	/**
+	 * Converts `string` to a property path array.
+	 *
+	 * @private
+	 * @param {string} string The string to convert.
+	 * @returns {Array} Returns the property path array.
+	 */
+	var stringToPath = memoize(function(string) {
+	  var result = [];
+	  toString(string).replace(rePropName, function(match, number, quote, string) {
+	    result.push(quote ? string.replace(reEscapeChar, '$1') : (number || match));
+	  });
+	  return result;
+	});
+	
+	module.exports = stringToPath;
+
+
+/***/ },
+/* 155 */
+/*!*****************************!*\
+  !*** ./~/lodash/memoize.js ***!
+  \*****************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var MapCache = __webpack_require__(/*! ./_MapCache */ 156);
+	
+	/** Used as the `TypeError` message for "Functions" methods. */
+	var FUNC_ERROR_TEXT = 'Expected a function';
+	
+	/**
+	 * Creates a function that memoizes the result of `func`. If `resolver` is
+	 * provided, it determines the cache key for storing the result based on the
+	 * arguments provided to the memoized function. By default, the first argument
+	 * provided to the memoized function is used as the map cache key. The `func`
+	 * is invoked with the `this` binding of the memoized function.
+	 *
+	 * **Note:** The cache is exposed as the `cache` property on the memoized
+	 * function. Its creation may be customized by replacing the `_.memoize.Cache`
+	 * constructor with one whose instances implement the
+	 * [`Map`](http://ecma-international.org/ecma-262/6.0/#sec-properties-of-the-map-prototype-object)
+	 * method interface of `delete`, `get`, `has`, and `set`.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 0.1.0
+	 * @category Function
+	 * @param {Function} func The function to have its output memoized.
+	 * @param {Function} [resolver] The function to resolve the cache key.
+	 * @returns {Function} Returns the new memoized function.
+	 * @example
+	 *
+	 * var object = { 'a': 1, 'b': 2 };
+	 * var other = { 'c': 3, 'd': 4 };
+	 *
+	 * var values = _.memoize(_.values);
+	 * values(object);
+	 * // => [1, 2]
+	 *
+	 * values(other);
+	 * // => [3, 4]
+	 *
+	 * object.a = 2;
+	 * values(object);
+	 * // => [1, 2]
+	 *
+	 * // Modify the result cache.
+	 * values.cache.set(object, ['a', 'b']);
+	 * values(object);
+	 * // => ['a', 'b']
+	 *
+	 * // Replace `_.memoize.Cache`.
+	 * _.memoize.Cache = WeakMap;
+	 */
+	function memoize(func, resolver) {
+	  if (typeof func != 'function' || (resolver && typeof resolver != 'function')) {
+	    throw new TypeError(FUNC_ERROR_TEXT);
+	  }
+	  var memoized = function() {
+	    var args = arguments,
+	        key = resolver ? resolver.apply(this, args) : args[0],
+	        cache = memoized.cache;
+	
+	    if (cache.has(key)) {
+	      return cache.get(key);
+	    }
+	    var result = func.apply(this, args);
+	    memoized.cache = cache.set(key, result);
+	    return result;
+	  };
+	  memoized.cache = new (memoize.Cache || MapCache);
+	  return memoized;
+	}
+	
+	// Assign cache to `_.memoize`.
+	memoize.Cache = MapCache;
+	
+	module.exports = memoize;
+
+
+/***/ },
+/* 156 */
+/*!*******************************!*\
+  !*** ./~/lodash/_MapCache.js ***!
+  \*******************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var mapCacheClear = __webpack_require__(/*! ./_mapCacheClear */ 157),
+	    mapCacheDelete = __webpack_require__(/*! ./_mapCacheDelete */ 183),
+	    mapCacheGet = __webpack_require__(/*! ./_mapCacheGet */ 186),
+	    mapCacheHas = __webpack_require__(/*! ./_mapCacheHas */ 187),
+	    mapCacheSet = __webpack_require__(/*! ./_mapCacheSet */ 188);
+	
+	/**
+	 * Creates a map cache object to store key-value pairs.
+	 *
+	 * @private
+	 * @constructor
+	 * @param {Array} [entries] The key-value pairs to cache.
+	 */
+	function MapCache(entries) {
+	  var index = -1,
+	      length = entries ? entries.length : 0;
+	
+	  this.clear();
+	  while (++index < length) {
+	    var entry = entries[index];
+	    this.set(entry[0], entry[1]);
+	  }
+	}
+	
+	// Add methods to `MapCache`.
+	MapCache.prototype.clear = mapCacheClear;
+	MapCache.prototype['delete'] = mapCacheDelete;
+	MapCache.prototype.get = mapCacheGet;
+	MapCache.prototype.has = mapCacheHas;
+	MapCache.prototype.set = mapCacheSet;
+	
+	module.exports = MapCache;
+
+
+/***/ },
+/* 157 */
+/*!************************************!*\
+  !*** ./~/lodash/_mapCacheClear.js ***!
+  \************************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var Hash = __webpack_require__(/*! ./_Hash */ 158),
+	    ListCache = __webpack_require__(/*! ./_ListCache */ 174),
+	    Map = __webpack_require__(/*! ./_Map */ 182);
+	
+	/**
+	 * Removes all key-value entries from the map.
+	 *
+	 * @private
+	 * @name clear
+	 * @memberOf MapCache
+	 */
+	function mapCacheClear() {
+	  this.__data__ = {
+	    'hash': new Hash,
+	    'map': new (Map || ListCache),
+	    'string': new Hash
+	  };
+	}
+	
+	module.exports = mapCacheClear;
+
+
+/***/ },
+/* 158 */
+/*!***************************!*\
+  !*** ./~/lodash/_Hash.js ***!
+  \***************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var hashClear = __webpack_require__(/*! ./_hashClear */ 159),
+	    hashDelete = __webpack_require__(/*! ./_hashDelete */ 170),
+	    hashGet = __webpack_require__(/*! ./_hashGet */ 171),
+	    hashHas = __webpack_require__(/*! ./_hashHas */ 172),
+	    hashSet = __webpack_require__(/*! ./_hashSet */ 173);
+	
+	/**
+	 * Creates a hash object.
+	 *
+	 * @private
+	 * @constructor
+	 * @param {Array} [entries] The key-value pairs to cache.
+	 */
+	function Hash(entries) {
+	  var index = -1,
+	      length = entries ? entries.length : 0;
+	
+	  this.clear();
+	  while (++index < length) {
+	    var entry = entries[index];
+	    this.set(entry[0], entry[1]);
+	  }
+	}
+	
+	// Add methods to `Hash`.
+	Hash.prototype.clear = hashClear;
+	Hash.prototype['delete'] = hashDelete;
+	Hash.prototype.get = hashGet;
+	Hash.prototype.has = hashHas;
+	Hash.prototype.set = hashSet;
+	
+	module.exports = Hash;
+
+
+/***/ },
+/* 159 */
+/*!********************************!*\
+  !*** ./~/lodash/_hashClear.js ***!
+  \********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var nativeCreate = __webpack_require__(/*! ./_nativeCreate */ 160);
+	
+	/**
+	 * Removes all key-value entries from the hash.
+	 *
+	 * @private
+	 * @name clear
+	 * @memberOf Hash
+	 */
+	function hashClear() {
+	  this.__data__ = nativeCreate ? nativeCreate(null) : {};
+	}
+	
+	module.exports = hashClear;
+
+
+/***/ },
+/* 160 */
+/*!***********************************!*\
+  !*** ./~/lodash/_nativeCreate.js ***!
+  \***********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var getNative = __webpack_require__(/*! ./_getNative */ 161);
+	
+	/* Built-in method references that are verified to be native. */
+	var nativeCreate = getNative(Object, 'create');
+	
+	module.exports = nativeCreate;
+
+
+/***/ },
+/* 161 */
+/*!********************************!*\
+  !*** ./~/lodash/_getNative.js ***!
+  \********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var baseIsNative = __webpack_require__(/*! ./_baseIsNative */ 162),
+	    getValue = __webpack_require__(/*! ./_getValue */ 169);
+	
+	/**
+	 * Gets the native function at `key` of `object`.
+	 *
+	 * @private
+	 * @param {Object} object The object to query.
+	 * @param {string} key The key of the method to get.
+	 * @returns {*} Returns the function if it's native, else `undefined`.
+	 */
+	function getNative(object, key) {
+	  var value = getValue(object, key);
+	  return baseIsNative(value) ? value : undefined;
+	}
+	
+	module.exports = getNative;
+
+
+/***/ },
+/* 162 */
+/*!***********************************!*\
+  !*** ./~/lodash/_baseIsNative.js ***!
+  \***********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var isFunction = __webpack_require__(/*! ./isFunction */ 147),
+	    isHostObject = __webpack_require__(/*! ./_isHostObject */ 163),
+	    isMasked = __webpack_require__(/*! ./_isMasked */ 164),
+	    isObject = __webpack_require__(/*! ./isObject */ 144),
+	    toSource = __webpack_require__(/*! ./_toSource */ 168);
+	
+	/**
+	 * Used to match `RegExp`
+	 * [syntax characters](http://ecma-international.org/ecma-262/6.0/#sec-patterns).
+	 */
+	var reRegExpChar = /[\\^$.*+?()[\]{}|]/g;
+	
+	/** Used to detect host constructors (Safari). */
+	var reIsHostCtor = /^\[object .+?Constructor\]$/;
+	
+	/** Used for built-in method references. */
+	var objectProto = Object.prototype;
+	
+	/** Used to resolve the decompiled source of functions. */
+	var funcToString = Function.prototype.toString;
+	
+	/** Used to check objects for own properties. */
+	var hasOwnProperty = objectProto.hasOwnProperty;
+	
+	/** Used to detect if a method is native. */
+	var reIsNative = RegExp('^' +
+	  funcToString.call(hasOwnProperty).replace(reRegExpChar, '\\$&')
+	  .replace(/hasOwnProperty|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
+	);
+	
+	/**
+	 * The base implementation of `_.isNative` without bad shim checks.
+	 *
+	 * @private
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is a native function,
+	 *  else `false`.
+	 */
+	function baseIsNative(value) {
+	  if (!isObject(value) || isMasked(value)) {
+	    return false;
+	  }
+	  var pattern = (isFunction(value) || isHostObject(value)) ? reIsNative : reIsHostCtor;
+	  return pattern.test(toSource(value));
+	}
+	
+	module.exports = baseIsNative;
+
+
+/***/ },
+/* 163 */
+/*!***********************************!*\
+  !*** ./~/lodash/_isHostObject.js ***!
+  \***********************************/
+/***/ function(module, exports) {
+
+	/**
+	 * Checks if `value` is a host object in IE < 9.
+	 *
+	 * @private
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is a host object, else `false`.
+	 */
+	function isHostObject(value) {
+	  // Many host objects are `Object` objects that can coerce to strings
+	  // despite having improperly defined `toString` methods.
+	  var result = false;
+	  if (value != null && typeof value.toString != 'function') {
+	    try {
+	      result = !!(value + '');
+	    } catch (e) {}
+	  }
+	  return result;
+	}
+	
+	module.exports = isHostObject;
+
+
+/***/ },
+/* 164 */
+/*!*******************************!*\
+  !*** ./~/lodash/_isMasked.js ***!
+  \*******************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var coreJsData = __webpack_require__(/*! ./_coreJsData */ 165);
+	
+	/** Used to detect methods masquerading as native. */
+	var maskSrcKey = (function() {
+	  var uid = /[^.]+$/.exec(coreJsData && coreJsData.keys && coreJsData.keys.IE_PROTO || '');
+	  return uid ? ('Symbol(src)_1.' + uid) : '';
+	}());
+	
+	/**
+	 * Checks if `func` has its source masked.
+	 *
+	 * @private
+	 * @param {Function} func The function to check.
+	 * @returns {boolean} Returns `true` if `func` is masked, else `false`.
+	 */
+	function isMasked(func) {
+	  return !!maskSrcKey && (maskSrcKey in func);
+	}
+	
+	module.exports = isMasked;
+
+
+/***/ },
+/* 165 */
+/*!*********************************!*\
+  !*** ./~/lodash/_coreJsData.js ***!
+  \*********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var root = __webpack_require__(/*! ./_root */ 166);
+	
+	/** Used to detect overreaching core-js shims. */
+	var coreJsData = root['__core-js_shared__'];
+	
+	module.exports = coreJsData;
+
+
+/***/ },
+/* 166 */
+/*!***************************!*\
+  !*** ./~/lodash/_root.js ***!
+  \***************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	/* WEBPACK VAR INJECTION */(function(global) {var checkGlobal = __webpack_require__(/*! ./_checkGlobal */ 167);
+	
+	/** Detect free variable `global` from Node.js. */
+	var freeGlobal = checkGlobal(typeof global == 'object' && global);
+	
+	/** Detect free variable `self`. */
+	var freeSelf = checkGlobal(typeof self == 'object' && self);
+	
+	/** Detect `this` as the global object. */
+	var thisGlobal = checkGlobal(typeof this == 'object' && this);
+	
+	/** Used as a reference to the global object. */
+	var root = freeGlobal || freeSelf || thisGlobal || Function('return this')();
+	
+	module.exports = root;
+	
+	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
+
+/***/ },
+/* 167 */
+/*!**********************************!*\
+  !*** ./~/lodash/_checkGlobal.js ***!
+  \**********************************/
+/***/ function(module, exports) {
+
+	/**
+	 * Checks if `value` is a global object.
+	 *
+	 * @private
+	 * @param {*} value The value to check.
+	 * @returns {null|Object} Returns `value` if it's a global object, else `null`.
+	 */
+	function checkGlobal(value) {
+	  return (value && value.Object === Object) ? value : null;
+	}
+	
+	module.exports = checkGlobal;
+
+
+/***/ },
+/* 168 */
+/*!*******************************!*\
+  !*** ./~/lodash/_toSource.js ***!
+  \*******************************/
+/***/ function(module, exports) {
+
+	/** Used to resolve the decompiled source of functions. */
+	var funcToString = Function.prototype.toString;
+	
+	/**
+	 * Converts `func` to its source code.
+	 *
+	 * @private
+	 * @param {Function} func The function to process.
+	 * @returns {string} Returns the source code.
+	 */
+	function toSource(func) {
+	  if (func != null) {
+	    try {
+	      return funcToString.call(func);
+	    } catch (e) {}
+	    try {
+	      return (func + '');
+	    } catch (e) {}
+	  }
+	  return '';
+	}
+	
+	module.exports = toSource;
+
+
+/***/ },
+/* 169 */
+/*!*******************************!*\
+  !*** ./~/lodash/_getValue.js ***!
+  \*******************************/
+/***/ function(module, exports) {
+
+	/**
+	 * Gets the value at `key` of `object`.
+	 *
+	 * @private
+	 * @param {Object} [object] The object to query.
+	 * @param {string} key The key of the property to get.
+	 * @returns {*} Returns the property value.
+	 */
+	function getValue(object, key) {
+	  return object == null ? undefined : object[key];
+	}
+	
+	module.exports = getValue;
+
+
+/***/ },
+/* 170 */
+/*!*********************************!*\
+  !*** ./~/lodash/_hashDelete.js ***!
+  \*********************************/
+/***/ function(module, exports) {
+
+	/**
+	 * Removes `key` and its value from the hash.
+	 *
+	 * @private
+	 * @name delete
+	 * @memberOf Hash
+	 * @param {Object} hash The hash to modify.
+	 * @param {string} key The key of the value to remove.
+	 * @returns {boolean} Returns `true` if the entry was removed, else `false`.
+	 */
+	function hashDelete(key) {
+	  return this.has(key) && delete this.__data__[key];
+	}
+	
+	module.exports = hashDelete;
+
+
+/***/ },
+/* 171 */
+/*!******************************!*\
+  !*** ./~/lodash/_hashGet.js ***!
+  \******************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var nativeCreate = __webpack_require__(/*! ./_nativeCreate */ 160);
+	
+	/** Used to stand-in for `undefined` hash values. */
+	var HASH_UNDEFINED = '__lodash_hash_undefined__';
+	
+	/** Used for built-in method references. */
+	var objectProto = Object.prototype;
+	
+	/** Used to check objects for own properties. */
+	var hasOwnProperty = objectProto.hasOwnProperty;
+	
+	/**
+	 * Gets the hash value for `key`.
+	 *
+	 * @private
+	 * @name get
+	 * @memberOf Hash
+	 * @param {string} key The key of the value to get.
+	 * @returns {*} Returns the entry value.
+	 */
+	function hashGet(key) {
+	  var data = this.__data__;
+	  if (nativeCreate) {
+	    var result = data[key];
+	    return result === HASH_UNDEFINED ? undefined : result;
+	  }
+	  return hasOwnProperty.call(data, key) ? data[key] : undefined;
+	}
+	
+	module.exports = hashGet;
+
+
+/***/ },
+/* 172 */
+/*!******************************!*\
+  !*** ./~/lodash/_hashHas.js ***!
+  \******************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var nativeCreate = __webpack_require__(/*! ./_nativeCreate */ 160);
+	
+	/** Used for built-in method references. */
+	var objectProto = Object.prototype;
+	
+	/** Used to check objects for own properties. */
+	var hasOwnProperty = objectProto.hasOwnProperty;
+	
+	/**
+	 * Checks if a hash value for `key` exists.
+	 *
+	 * @private
+	 * @name has
+	 * @memberOf Hash
+	 * @param {string} key The key of the entry to check.
+	 * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
+	 */
+	function hashHas(key) {
+	  var data = this.__data__;
+	  return nativeCreate ? data[key] !== undefined : hasOwnProperty.call(data, key);
+	}
+	
+	module.exports = hashHas;
+
+
+/***/ },
+/* 173 */
+/*!******************************!*\
+  !*** ./~/lodash/_hashSet.js ***!
+  \******************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var nativeCreate = __webpack_require__(/*! ./_nativeCreate */ 160);
+	
+	/** Used to stand-in for `undefined` hash values. */
+	var HASH_UNDEFINED = '__lodash_hash_undefined__';
+	
+	/**
+	 * Sets the hash `key` to `value`.
+	 *
+	 * @private
+	 * @name set
+	 * @memberOf Hash
+	 * @param {string} key The key of the value to set.
+	 * @param {*} value The value to set.
+	 * @returns {Object} Returns the hash instance.
+	 */
+	function hashSet(key, value) {
+	  var data = this.__data__;
+	  data[key] = (nativeCreate && value === undefined) ? HASH_UNDEFINED : value;
+	  return this;
+	}
+	
+	module.exports = hashSet;
+
+
+/***/ },
+/* 174 */
+/*!********************************!*\
+  !*** ./~/lodash/_ListCache.js ***!
+  \********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var listCacheClear = __webpack_require__(/*! ./_listCacheClear */ 175),
+	    listCacheDelete = __webpack_require__(/*! ./_listCacheDelete */ 176),
+	    listCacheGet = __webpack_require__(/*! ./_listCacheGet */ 179),
+	    listCacheHas = __webpack_require__(/*! ./_listCacheHas */ 180),
+	    listCacheSet = __webpack_require__(/*! ./_listCacheSet */ 181);
+	
+	/**
+	 * Creates an list cache object.
+	 *
+	 * @private
+	 * @constructor
+	 * @param {Array} [entries] The key-value pairs to cache.
+	 */
+	function ListCache(entries) {
+	  var index = -1,
+	      length = entries ? entries.length : 0;
+	
+	  this.clear();
+	  while (++index < length) {
+	    var entry = entries[index];
+	    this.set(entry[0], entry[1]);
+	  }
+	}
+	
+	// Add methods to `ListCache`.
+	ListCache.prototype.clear = listCacheClear;
+	ListCache.prototype['delete'] = listCacheDelete;
+	ListCache.prototype.get = listCacheGet;
+	ListCache.prototype.has = listCacheHas;
+	ListCache.prototype.set = listCacheSet;
+	
+	module.exports = ListCache;
+
+
+/***/ },
+/* 175 */
+/*!*************************************!*\
+  !*** ./~/lodash/_listCacheClear.js ***!
+  \*************************************/
+/***/ function(module, exports) {
+
+	/**
+	 * Removes all key-value entries from the list cache.
+	 *
+	 * @private
+	 * @name clear
+	 * @memberOf ListCache
+	 */
+	function listCacheClear() {
+	  this.__data__ = [];
+	}
+	
+	module.exports = listCacheClear;
+
+
+/***/ },
+/* 176 */
+/*!**************************************!*\
+  !*** ./~/lodash/_listCacheDelete.js ***!
+  \**************************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var assocIndexOf = __webpack_require__(/*! ./_assocIndexOf */ 177);
+	
+	/** Used for built-in method references. */
+	var arrayProto = Array.prototype;
+	
+	/** Built-in value references. */
+	var splice = arrayProto.splice;
+	
+	/**
+	 * Removes `key` and its value from the list cache.
+	 *
+	 * @private
+	 * @name delete
+	 * @memberOf ListCache
+	 * @param {string} key The key of the value to remove.
+	 * @returns {boolean} Returns `true` if the entry was removed, else `false`.
+	 */
+	function listCacheDelete(key) {
+	  var data = this.__data__,
+	      index = assocIndexOf(data, key);
+	
+	  if (index < 0) {
+	    return false;
+	  }
+	  var lastIndex = data.length - 1;
+	  if (index == lastIndex) {
+	    data.pop();
+	  } else {
+	    splice.call(data, index, 1);
+	  }
+	  return true;
+	}
+	
+	module.exports = listCacheDelete;
+
+
+/***/ },
+/* 177 */
+/*!***********************************!*\
+  !*** ./~/lodash/_assocIndexOf.js ***!
+  \***********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var eq = __webpack_require__(/*! ./eq */ 178);
+	
+	/**
+	 * Gets the index at which the `key` is found in `array` of key-value pairs.
+	 *
+	 * @private
+	 * @param {Array} array The array to search.
+	 * @param {*} key The key to search for.
+	 * @returns {number} Returns the index of the matched value, else `-1`.
+	 */
+	function assocIndexOf(array, key) {
+	  var length = array.length;
+	  while (length--) {
+	    if (eq(array[length][0], key)) {
+	      return length;
+	    }
+	  }
+	  return -1;
+	}
+	
+	module.exports = assocIndexOf;
+
+
+/***/ },
+/* 178 */
+/*!************************!*\
+  !*** ./~/lodash/eq.js ***!
+  \************************/
+/***/ function(module, exports) {
+
+	/**
+	 * Performs a
+	 * [`SameValueZero`](http://ecma-international.org/ecma-262/6.0/#sec-samevaluezero)
+	 * comparison between two values to determine if they are equivalent.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 4.0.0
+	 * @category Lang
+	 * @param {*} value The value to compare.
+	 * @param {*} other The other value to compare.
+	 * @returns {boolean} Returns `true` if the values are equivalent, else `false`.
+	 * @example
+	 *
+	 * var object = { 'user': 'fred' };
+	 * var other = { 'user': 'fred' };
+	 *
+	 * _.eq(object, object);
+	 * // => true
+	 *
+	 * _.eq(object, other);
+	 * // => false
+	 *
+	 * _.eq('a', 'a');
+	 * // => true
+	 *
+	 * _.eq('a', Object('a'));
+	 * // => false
+	 *
+	 * _.eq(NaN, NaN);
+	 * // => true
+	 */
+	function eq(value, other) {
+	  return value === other || (value !== value && other !== other);
+	}
+	
+	module.exports = eq;
+
+
+/***/ },
+/* 179 */
+/*!***********************************!*\
+  !*** ./~/lodash/_listCacheGet.js ***!
+  \***********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var assocIndexOf = __webpack_require__(/*! ./_assocIndexOf */ 177);
+	
+	/**
+	 * Gets the list cache value for `key`.
+	 *
+	 * @private
+	 * @name get
+	 * @memberOf ListCache
+	 * @param {string} key The key of the value to get.
+	 * @returns {*} Returns the entry value.
+	 */
+	function listCacheGet(key) {
+	  var data = this.__data__,
+	      index = assocIndexOf(data, key);
+	
+	  return index < 0 ? undefined : data[index][1];
+	}
+	
+	module.exports = listCacheGet;
+
+
+/***/ },
+/* 180 */
+/*!***********************************!*\
+  !*** ./~/lodash/_listCacheHas.js ***!
+  \***********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var assocIndexOf = __webpack_require__(/*! ./_assocIndexOf */ 177);
+	
+	/**
+	 * Checks if a list cache value for `key` exists.
+	 *
+	 * @private
+	 * @name has
+	 * @memberOf ListCache
+	 * @param {string} key The key of the entry to check.
+	 * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
+	 */
+	function listCacheHas(key) {
+	  return assocIndexOf(this.__data__, key) > -1;
+	}
+	
+	module.exports = listCacheHas;
+
+
+/***/ },
+/* 181 */
+/*!***********************************!*\
+  !*** ./~/lodash/_listCacheSet.js ***!
+  \***********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var assocIndexOf = __webpack_require__(/*! ./_assocIndexOf */ 177);
+	
+	/**
+	 * Sets the list cache `key` to `value`.
+	 *
+	 * @private
+	 * @name set
+	 * @memberOf ListCache
+	 * @param {string} key The key of the value to set.
+	 * @param {*} value The value to set.
+	 * @returns {Object} Returns the list cache instance.
+	 */
+	function listCacheSet(key, value) {
+	  var data = this.__data__,
+	      index = assocIndexOf(data, key);
+	
+	  if (index < 0) {
+	    data.push([key, value]);
+	  } else {
+	    data[index][1] = value;
+	  }
+	  return this;
+	}
+	
+	module.exports = listCacheSet;
+
+
+/***/ },
+/* 182 */
+/*!**************************!*\
+  !*** ./~/lodash/_Map.js ***!
+  \**************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var getNative = __webpack_require__(/*! ./_getNative */ 161),
+	    root = __webpack_require__(/*! ./_root */ 166);
+	
+	/* Built-in method references that are verified to be native. */
+	var Map = getNative(root, 'Map');
+	
+	module.exports = Map;
+
+
+/***/ },
+/* 183 */
+/*!*************************************!*\
+  !*** ./~/lodash/_mapCacheDelete.js ***!
+  \*************************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var getMapData = __webpack_require__(/*! ./_getMapData */ 184);
+	
+	/**
+	 * Removes `key` and its value from the map.
+	 *
+	 * @private
+	 * @name delete
+	 * @memberOf MapCache
+	 * @param {string} key The key of the value to remove.
+	 * @returns {boolean} Returns `true` if the entry was removed, else `false`.
+	 */
+	function mapCacheDelete(key) {
+	  return getMapData(this, key)['delete'](key);
+	}
+	
+	module.exports = mapCacheDelete;
+
+
+/***/ },
+/* 184 */
+/*!*********************************!*\
+  !*** ./~/lodash/_getMapData.js ***!
+  \*********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var isKeyable = __webpack_require__(/*! ./_isKeyable */ 185);
+	
+	/**
+	 * Gets the data for `map`.
+	 *
+	 * @private
+	 * @param {Object} map The map to query.
+	 * @param {string} key The reference key.
+	 * @returns {*} Returns the map data.
+	 */
+	function getMapData(map, key) {
+	  var data = map.__data__;
+	  return isKeyable(key)
+	    ? data[typeof key == 'string' ? 'string' : 'hash']
+	    : data.map;
+	}
+	
+	module.exports = getMapData;
+
+
+/***/ },
+/* 185 */
+/*!********************************!*\
+  !*** ./~/lodash/_isKeyable.js ***!
+  \********************************/
+/***/ function(module, exports) {
+
+	/**
+	 * Checks if `value` is suitable for use as unique object key.
+	 *
+	 * @private
+	 * @param {*} value The value to check.
+	 * @returns {boolean} Returns `true` if `value` is suitable, else `false`.
+	 */
+	function isKeyable(value) {
+	  var type = typeof value;
+	  return (type == 'string' || type == 'number' || type == 'symbol' || type == 'boolean')
+	    ? (value !== '__proto__')
+	    : (value === null);
+	}
+	
+	module.exports = isKeyable;
+
+
+/***/ },
+/* 186 */
+/*!**********************************!*\
+  !*** ./~/lodash/_mapCacheGet.js ***!
+  \**********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var getMapData = __webpack_require__(/*! ./_getMapData */ 184);
+	
+	/**
+	 * Gets the map value for `key`.
+	 *
+	 * @private
+	 * @name get
+	 * @memberOf MapCache
+	 * @param {string} key The key of the value to get.
+	 * @returns {*} Returns the entry value.
+	 */
+	function mapCacheGet(key) {
+	  return getMapData(this, key).get(key);
+	}
+	
+	module.exports = mapCacheGet;
+
+
+/***/ },
+/* 187 */
+/*!**********************************!*\
+  !*** ./~/lodash/_mapCacheHas.js ***!
+  \**********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var getMapData = __webpack_require__(/*! ./_getMapData */ 184);
+	
+	/**
+	 * Checks if a map value for `key` exists.
+	 *
+	 * @private
+	 * @name has
+	 * @memberOf MapCache
+	 * @param {string} key The key of the entry to check.
+	 * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
+	 */
+	function mapCacheHas(key) {
+	  return getMapData(this, key).has(key);
+	}
+	
+	module.exports = mapCacheHas;
+
+
+/***/ },
+/* 188 */
+/*!**********************************!*\
+  !*** ./~/lodash/_mapCacheSet.js ***!
+  \**********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var getMapData = __webpack_require__(/*! ./_getMapData */ 184);
+	
+	/**
+	 * Sets the map `key` to `value`.
+	 *
+	 * @private
+	 * @name set
+	 * @memberOf MapCache
+	 * @param {string} key The key of the value to set.
+	 * @param {*} value The value to set.
+	 * @returns {Object} Returns the map cache instance.
+	 */
+	function mapCacheSet(key, value) {
+	  getMapData(this, key).set(key, value);
+	  return this;
+	}
+	
+	module.exports = mapCacheSet;
+
+
+/***/ },
+/* 189 */
+/*!******************************!*\
+  !*** ./~/lodash/toString.js ***!
+  \******************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var baseToString = __webpack_require__(/*! ./_baseToString */ 190);
+	
+	/**
+	 * Converts `value` to a string. An empty string is returned for `null`
+	 * and `undefined` values. The sign of `-0` is preserved.
+	 *
+	 * @static
+	 * @memberOf _
+	 * @since 4.0.0
+	 * @category Lang
+	 * @param {*} value The value to process.
+	 * @returns {string} Returns the string.
+	 * @example
+	 *
+	 * _.toString(null);
+	 * // => ''
+	 *
+	 * _.toString(-0);
+	 * // => '-0'
+	 *
+	 * _.toString([1, 2, 3]);
+	 * // => '1,2,3'
+	 */
+	function toString(value) {
+	  return value == null ? '' : baseToString(value);
+	}
+	
+	module.exports = toString;
+
+
+/***/ },
+/* 190 */
+/*!***********************************!*\
+  !*** ./~/lodash/_baseToString.js ***!
+  \***********************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var Symbol = __webpack_require__(/*! ./_Symbol */ 191),
+	    isSymbol = __webpack_require__(/*! ./isSymbol */ 148);
+	
+	/** Used as references for various `Number` constants. */
+	var INFINITY = 1 / 0;
+	
+	/** Used to convert symbols to primitives and strings. */
+	var symbolProto = Symbol ? Symbol.prototype : undefined,
+	    symbolToString = symbolProto ? symbolProto.toString : undefined;
+	
+	/**
+	 * The base implementation of `_.toString` which doesn't convert nullish
+	 * values to empty strings.
+	 *
+	 * @private
+	 * @param {*} value The value to process.
+	 * @returns {string} Returns the string.
+	 */
+	function baseToString(value) {
+	  // Exit early for strings to avoid a performance hit in some environments.
+	  if (typeof value == 'string') {
+	    return value;
+	  }
+	  if (isSymbol(value)) {
+	    return symbolToString ? symbolToString.call(value) : '';
+	  }
+	  var result = (value + '');
+	  return (result == '0' && (1 / value) == -INFINITY) ? '-0' : result;
+	}
+	
+	module.exports = baseToString;
+
+
+/***/ },
+/* 191 */
+/*!*****************************!*\
+  !*** ./~/lodash/_Symbol.js ***!
+  \*****************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var root = __webpack_require__(/*! ./_root */ 166);
+	
+	/** Built-in value references. */
+	var Symbol = root.Symbol;
+	
+	module.exports = Symbol;
+
+
+/***/ },
+/* 192 */
+/*!****************************!*\
+  !*** ./~/lodash/_isKey.js ***!
+  \****************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var isArray = __webpack_require__(/*! ./isArray */ 153),
+	    isSymbol = __webpack_require__(/*! ./isSymbol */ 148);
+	
+	/** Used to match property names within property paths. */
+	var reIsDeepProp = /\.|\[(?:[^[\]]*|(["'])(?:(?!\1)[^\\]|\\.)*?\1)\]/,
+	    reIsPlainProp = /^\w*$/;
+	
+	/**
+	 * Checks if `value` is a property name and not a property path.
+	 *
+	 * @private
+	 * @param {*} value The value to check.
+	 * @param {Object} [object] The object to query keys on.
+	 * @returns {boolean} Returns `true` if `value` is a property name, else `false`.
+	 */
+	function isKey(value, object) {
+	  if (isArray(value)) {
+	    return false;
+	  }
+	  var type = typeof value;
+	  if (type == 'number' || type == 'symbol' || type == 'boolean' ||
+	      value == null || isSymbol(value)) {
+	    return true;
+	  }
+	  return reIsPlainProp.test(value) || !reIsDeepProp.test(value) ||
+	    (object != null && value in Object(object));
+	}
+	
+	module.exports = isKey;
+
+
+/***/ },
+/* 193 */
+/*!****************************!*\
+  !*** ./~/lodash/_toKey.js ***!
+  \****************************/
+/***/ function(module, exports, __webpack_require__) {
+
+	var isSymbol = __webpack_require__(/*! ./isSymbol */ 148);
+	
+	/** Used as references for various `Number` constants. */
+	var INFINITY = 1 / 0;
+	
+	/**
+	 * Converts `value` to a string key if it's not a string or symbol.
+	 *
+	 * @private
+	 * @param {*} value The value to inspect.
+	 * @returns {string|symbol} Returns the key.
+	 */
+	function toKey(value) {
+	  if (typeof value == 'string' || isSymbol(value)) {
+	    return value;
+	  }
+	  var result = (value + '');
+	  return (result == '0' && (1 / value) == -INFINITY) ? '-0' : result;
+	}
+	
+	module.exports = toKey;
+
+
+/***/ },
+/* 194 */
+/*!**************************!*\
+  !*** ./scripts/Point.js ***!
+  \**************************/
+/***/ function(module, exports) {
+
+	'use strict';
+	
+	Object.defineProperty(exports, "__esModule", {
+		value: true
+	});
+	
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+	
+	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+	
+	var Point = function () {
+		function Point() {
+			var x = arguments.length <= 0 || arguments[0] === undefined ? 0 : arguments[0];
+			var y = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
+	
+			_classCallCheck(this, Point);
+	
+			this.x = x;
+			this.y = y;
+			return this;
+		}
+	
+		_createClass(Point, [{
+			key: 'abs',
+			value: function abs() {
+				this.x = Math.abs(this.x);
+				this.y = Math.abs(this.y);
+				return this;
+			}
+		}, {
+			key: 'add',
+			value: function add() /* point1, point2, ... */{
+				if (arguments.length === 1 && typeof arguments[0] == 'number') {
+					this.x += arguments[0];
+					this.y += arguments[0];
+				} else {
+					// not using a for of loop because ie11
+					for (var a = 0; a < arguments.length; a++) {
+						this.x += arguments[a].x;
+						this.y += arguments[a].y;
+					}
+				}
+				return this;
+			}
+		}, {
+			key: 'subtract',
+			value: function subtract() /* point1, point2, ... */{
+				if (arguments.length === 1 && typeof arguments[0] == 'number') {
+					this.x -= arguments[0];
+					this.y -= arguments[0];
+				} else {
+					// not using a for of loop because ie11
+					for (var a = 0; a < arguments.length; a++) {
+						this.x -= arguments[a].x;
+						this.y -= arguments[a].y;
+					}
+				}
+				return this;
+			}
+		}, {
+			key: 'multiply',
+			value: function multiply(point) {
+				if (typeof point == 'number') {
+					this.x *= point;
+					this.y *= point;
+				} else {
+					this.x *= point.x;
+					this.y *= point.y;
+				}
+				return this;
+			}
+		}, {
+			key: 'divide',
+			value: function divide(point) {
+				if (typeof point == 'number') {
+					this.x /= point;
+					this.y /= point;
+				} else {
+					this.x /= point.x;
+					this.y /= point.y;
+				}
+				return this;
+			}
+		}, {
+			key: 'distance',
+			value: function distance(point) {
+				return Math.sqrt(Math.pow(point.x - this.x, 2) + Math.pow(point.y - this.y, 2));
+			}
+		}, {
+			key: 'normalize',
+			value: function normalize() {
+				var scale = arguments.length <= 0 || arguments[0] === undefined ? 1 : arguments[0];
+	
+				var norm = Math.sqrt(this.x * this.x + this.y * this.y);
+				if (norm !== 0) {
+					this.x = scale * this.x / norm;
+					this.y = scale * this.y / norm;
+				}
+				return this;
+			}
+		}, {
+			key: 'limit',
+			value: function limit(max) {
+				if (this.x * this.x + this.y * this.y > max * max) {
+					this.normalize();
+					this.multiply(max);
+				}
+				return this;
+			}
+		}]);
+	
+		return Point;
+	}();
+	
+	exports.default = Point;
+
+/***/ },
+/* 195 */
 /*!****************************!*\
   !*** ./~/dat-gui/index.js ***!
   \****************************/
 /***/ function(module, exports, __webpack_require__) {
 
-	module.exports = __webpack_require__(/*! ./vendor/dat.gui */ 143)
-	module.exports.color = __webpack_require__(/*! ./vendor/dat.color */ 144)
+	module.exports = __webpack_require__(/*! ./vendor/dat.gui */ 196)
+	module.exports.color = __webpack_require__(/*! ./vendor/dat.color */ 197)
 
 /***/ },
-/* 143 */
+/* 196 */
 /*!*************************************!*\
   !*** ./~/dat-gui/vendor/dat.gui.js ***!
   \*************************************/
@@ -45861,7 +47845,7 @@
 	dat.utils.common);
 
 /***/ },
-/* 144 */
+/* 197 */
 /*!***************************************!*\
   !*** ./~/dat-gui/vendor/dat.color.js ***!
   \***************************************/
@@ -46622,1811 +48606,6 @@
 	})(),
 	dat.color.toString,
 	dat.utils.common);
-
-/***/ },
-/* 145 */
-/*!************************************!*\
-  !*** ./~/lodash.throttle/index.js ***!
-  \************************************/
-/***/ function(module, exports, __webpack_require__) {
-
-	/**
-	 * lodash 4.0.1 (Custom Build) <https://lodash.com/>
-	 * Build: `lodash modularize exports="npm" -o ./`
-	 * Copyright 2012-2016 The Dojo Foundation <http://dojofoundation.org/>
-	 * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
-	 * Copyright 2009-2016 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
-	 * Available under MIT license <https://lodash.com/license>
-	 */
-	var debounce = __webpack_require__(/*! lodash.debounce */ 146);
-	
-	/** Used as the `TypeError` message for "Functions" methods. */
-	var FUNC_ERROR_TEXT = 'Expected a function';
-	
-	/**
-	 * Creates a throttled function that only invokes `func` at most once per
-	 * every `wait` milliseconds. The throttled function comes with a `cancel`
-	 * method to cancel delayed `func` invocations and a `flush` method to
-	 * immediately invoke them. Provide an options object to indicate whether
-	 * `func` should be invoked on the leading and/or trailing edge of the `wait`
-	 * timeout. The `func` is invoked with the last arguments provided to the
-	 * throttled function. Subsequent calls to the throttled function return the
-	 * result of the last `func` invocation.
-	 *
-	 * **Note:** If `leading` and `trailing` options are `true`, `func` is invoked
-	 * on the trailing edge of the timeout only if the throttled function is
-	 * invoked more than once during the `wait` timeout.
-	 *
-	 * See [David Corbacho's article](http://drupalmotion.com/article/debounce-and-throttle-visual-explanation)
-	 * for details over the differences between `_.throttle` and `_.debounce`.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @category Function
-	 * @param {Function} func The function to throttle.
-	 * @param {number} [wait=0] The number of milliseconds to throttle invocations to.
-	 * @param {Object} [options] The options object.
-	 * @param {boolean} [options.leading=true] Specify invoking on the leading
-	 *  edge of the timeout.
-	 * @param {boolean} [options.trailing=true] Specify invoking on the trailing
-	 *  edge of the timeout.
-	 * @returns {Function} Returns the new throttled function.
-	 * @example
-	 *
-	 * // Avoid excessively updating the position while scrolling.
-	 * jQuery(window).on('scroll', _.throttle(updatePosition, 100));
-	 *
-	 * // Invoke `renewToken` when the click event is fired, but not more than once every 5 minutes.
-	 * var throttled = _.throttle(renewToken, 300000, { 'trailing': false });
-	 * jQuery(element).on('click', throttled);
-	 *
-	 * // Cancel the trailing throttled invocation.
-	 * jQuery(window).on('popstate', throttled.cancel);
-	 */
-	function throttle(func, wait, options) {
-	  var leading = true,
-	      trailing = true;
-	
-	  if (typeof func != 'function') {
-	    throw new TypeError(FUNC_ERROR_TEXT);
-	  }
-	  if (isObject(options)) {
-	    leading = 'leading' in options ? !!options.leading : leading;
-	    trailing = 'trailing' in options ? !!options.trailing : trailing;
-	  }
-	  return debounce(func, wait, {
-	    'leading': leading,
-	    'maxWait': wait,
-	    'trailing': trailing
-	  });
-	}
-	
-	/**
-	 * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
-	 * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
-	 *
-	 * @static
-	 * @memberOf _
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is an object, else `false`.
-	 * @example
-	 *
-	 * _.isObject({});
-	 * // => true
-	 *
-	 * _.isObject([1, 2, 3]);
-	 * // => true
-	 *
-	 * _.isObject(_.noop);
-	 * // => true
-	 *
-	 * _.isObject(null);
-	 * // => false
-	 */
-	function isObject(value) {
-	  var type = typeof value;
-	  return !!value && (type == 'object' || type == 'function');
-	}
-	
-	module.exports = throttle;
-
-
-/***/ },
-/* 146 */
-/*!************************************!*\
-  !*** ./~/lodash.debounce/index.js ***!
-  \************************************/
-/***/ function(module, exports) {
-
-	/**
-	 * lodash 4.0.6 (Custom Build) <https://lodash.com/>
-	 * Build: `lodash modularize exports="npm" -o ./`
-	 * Copyright jQuery Foundation and other contributors <https://jquery.org/>
-	 * Released under MIT license <https://lodash.com/license>
-	 * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
-	 * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
-	 */
-	
-	/** Used as the `TypeError` message for "Functions" methods. */
-	var FUNC_ERROR_TEXT = 'Expected a function';
-	
-	/** Used as references for various `Number` constants. */
-	var NAN = 0 / 0;
-	
-	/** `Object#toString` result references. */
-	var funcTag = '[object Function]',
-	    genTag = '[object GeneratorFunction]',
-	    symbolTag = '[object Symbol]';
-	
-	/** Used to match leading and trailing whitespace. */
-	var reTrim = /^\s+|\s+$/g;
-	
-	/** Used to detect bad signed hexadecimal string values. */
-	var reIsBadHex = /^[-+]0x[0-9a-f]+$/i;
-	
-	/** Used to detect binary string values. */
-	var reIsBinary = /^0b[01]+$/i;
-	
-	/** Used to detect octal string values. */
-	var reIsOctal = /^0o[0-7]+$/i;
-	
-	/** Built-in method references without a dependency on `root`. */
-	var freeParseInt = parseInt;
-	
-	/** Used for built-in method references. */
-	var objectProto = Object.prototype;
-	
-	/**
-	 * Used to resolve the
-	 * [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
-	 * of values.
-	 */
-	var objectToString = objectProto.toString;
-	
-	/* Built-in method references for those with the same name as other `lodash` methods. */
-	var nativeMax = Math.max,
-	    nativeMin = Math.min;
-	
-	/**
-	 * Gets the timestamp of the number of milliseconds that have elapsed since
-	 * the Unix epoch (1 January 1970 00:00:00 UTC).
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 2.4.0
-	 * @type {Function}
-	 * @category Date
-	 * @returns {number} Returns the timestamp.
-	 * @example
-	 *
-	 * _.defer(function(stamp) {
-	 *   console.log(_.now() - stamp);
-	 * }, _.now());
-	 * // => Logs the number of milliseconds it took for the deferred function to be invoked.
-	 */
-	var now = Date.now;
-	
-	/**
-	 * Creates a debounced function that delays invoking `func` until after `wait`
-	 * milliseconds have elapsed since the last time the debounced function was
-	 * invoked. The debounced function comes with a `cancel` method to cancel
-	 * delayed `func` invocations and a `flush` method to immediately invoke them.
-	 * Provide an options object to indicate whether `func` should be invoked on
-	 * the leading and/or trailing edge of the `wait` timeout. The `func` is invoked
-	 * with the last arguments provided to the debounced function. Subsequent calls
-	 * to the debounced function return the result of the last `func` invocation.
-	 *
-	 * **Note:** If `leading` and `trailing` options are `true`, `func` is invoked
-	 * on the trailing edge of the timeout only if the debounced function is
-	 * invoked more than once during the `wait` timeout.
-	 *
-	 * See [David Corbacho's article](https://css-tricks.com/debouncing-throttling-explained-examples/)
-	 * for details over the differences between `_.debounce` and `_.throttle`.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 0.1.0
-	 * @category Function
-	 * @param {Function} func The function to debounce.
-	 * @param {number} [wait=0] The number of milliseconds to delay.
-	 * @param {Object} [options={}] The options object.
-	 * @param {boolean} [options.leading=false]
-	 *  Specify invoking on the leading edge of the timeout.
-	 * @param {number} [options.maxWait]
-	 *  The maximum time `func` is allowed to be delayed before it's invoked.
-	 * @param {boolean} [options.trailing=true]
-	 *  Specify invoking on the trailing edge of the timeout.
-	 * @returns {Function} Returns the new debounced function.
-	 * @example
-	 *
-	 * // Avoid costly calculations while the window size is in flux.
-	 * jQuery(window).on('resize', _.debounce(calculateLayout, 150));
-	 *
-	 * // Invoke `sendMail` when clicked, debouncing subsequent calls.
-	 * jQuery(element).on('click', _.debounce(sendMail, 300, {
-	 *   'leading': true,
-	 *   'trailing': false
-	 * }));
-	 *
-	 * // Ensure `batchLog` is invoked once after 1 second of debounced calls.
-	 * var debounced = _.debounce(batchLog, 250, { 'maxWait': 1000 });
-	 * var source = new EventSource('/stream');
-	 * jQuery(source).on('message', debounced);
-	 *
-	 * // Cancel the trailing debounced invocation.
-	 * jQuery(window).on('popstate', debounced.cancel);
-	 */
-	function debounce(func, wait, options) {
-	  var lastArgs,
-	      lastThis,
-	      maxWait,
-	      result,
-	      timerId,
-	      lastCallTime = 0,
-	      lastInvokeTime = 0,
-	      leading = false,
-	      maxing = false,
-	      trailing = true;
-	
-	  if (typeof func != 'function') {
-	    throw new TypeError(FUNC_ERROR_TEXT);
-	  }
-	  wait = toNumber(wait) || 0;
-	  if (isObject(options)) {
-	    leading = !!options.leading;
-	    maxing = 'maxWait' in options;
-	    maxWait = maxing ? nativeMax(toNumber(options.maxWait) || 0, wait) : maxWait;
-	    trailing = 'trailing' in options ? !!options.trailing : trailing;
-	  }
-	
-	  function invokeFunc(time) {
-	    var args = lastArgs,
-	        thisArg = lastThis;
-	
-	    lastArgs = lastThis = undefined;
-	    lastInvokeTime = time;
-	    result = func.apply(thisArg, args);
-	    return result;
-	  }
-	
-	  function leadingEdge(time) {
-	    // Reset any `maxWait` timer.
-	    lastInvokeTime = time;
-	    // Start the timer for the trailing edge.
-	    timerId = setTimeout(timerExpired, wait);
-	    // Invoke the leading edge.
-	    return leading ? invokeFunc(time) : result;
-	  }
-	
-	  function remainingWait(time) {
-	    var timeSinceLastCall = time - lastCallTime,
-	        timeSinceLastInvoke = time - lastInvokeTime,
-	        result = wait - timeSinceLastCall;
-	
-	    return maxing ? nativeMin(result, maxWait - timeSinceLastInvoke) : result;
-	  }
-	
-	  function shouldInvoke(time) {
-	    var timeSinceLastCall = time - lastCallTime,
-	        timeSinceLastInvoke = time - lastInvokeTime;
-	
-	    // Either this is the first call, activity has stopped and we're at the
-	    // trailing edge, the system time has gone backwards and we're treating
-	    // it as the trailing edge, or we've hit the `maxWait` limit.
-	    return (!lastCallTime || (timeSinceLastCall >= wait) ||
-	      (timeSinceLastCall < 0) || (maxing && timeSinceLastInvoke >= maxWait));
-	  }
-	
-	  function timerExpired() {
-	    var time = now();
-	    if (shouldInvoke(time)) {
-	      return trailingEdge(time);
-	    }
-	    // Restart the timer.
-	    timerId = setTimeout(timerExpired, remainingWait(time));
-	  }
-	
-	  function trailingEdge(time) {
-	    clearTimeout(timerId);
-	    timerId = undefined;
-	
-	    // Only invoke if we have `lastArgs` which means `func` has been
-	    // debounced at least once.
-	    if (trailing && lastArgs) {
-	      return invokeFunc(time);
-	    }
-	    lastArgs = lastThis = undefined;
-	    return result;
-	  }
-	
-	  function cancel() {
-	    if (timerId !== undefined) {
-	      clearTimeout(timerId);
-	    }
-	    lastCallTime = lastInvokeTime = 0;
-	    lastArgs = lastThis = timerId = undefined;
-	  }
-	
-	  function flush() {
-	    return timerId === undefined ? result : trailingEdge(now());
-	  }
-	
-	  function debounced() {
-	    var time = now(),
-	        isInvoking = shouldInvoke(time);
-	
-	    lastArgs = arguments;
-	    lastThis = this;
-	    lastCallTime = time;
-	
-	    if (isInvoking) {
-	      if (timerId === undefined) {
-	        return leadingEdge(lastCallTime);
-	      }
-	      if (maxing) {
-	        // Handle invocations in a tight loop.
-	        clearTimeout(timerId);
-	        timerId = setTimeout(timerExpired, wait);
-	        return invokeFunc(lastCallTime);
-	      }
-	    }
-	    if (timerId === undefined) {
-	      timerId = setTimeout(timerExpired, wait);
-	    }
-	    return result;
-	  }
-	  debounced.cancel = cancel;
-	  debounced.flush = flush;
-	  return debounced;
-	}
-	
-	/**
-	 * Checks if `value` is classified as a `Function` object.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 0.1.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is correctly classified,
-	 *  else `false`.
-	 * @example
-	 *
-	 * _.isFunction(_);
-	 * // => true
-	 *
-	 * _.isFunction(/abc/);
-	 * // => false
-	 */
-	function isFunction(value) {
-	  // The use of `Object#toString` avoids issues with the `typeof` operator
-	  // in Safari 8 which returns 'object' for typed array and weak map constructors,
-	  // and PhantomJS 1.9 which returns 'function' for `NodeList` instances.
-	  var tag = isObject(value) ? objectToString.call(value) : '';
-	  return tag == funcTag || tag == genTag;
-	}
-	
-	/**
-	 * Checks if `value` is the
-	 * [language type](http://www.ecma-international.org/ecma-262/6.0/#sec-ecmascript-language-types)
-	 * of `Object`. (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 0.1.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is an object, else `false`.
-	 * @example
-	 *
-	 * _.isObject({});
-	 * // => true
-	 *
-	 * _.isObject([1, 2, 3]);
-	 * // => true
-	 *
-	 * _.isObject(_.noop);
-	 * // => true
-	 *
-	 * _.isObject(null);
-	 * // => false
-	 */
-	function isObject(value) {
-	  var type = typeof value;
-	  return !!value && (type == 'object' || type == 'function');
-	}
-	
-	/**
-	 * Checks if `value` is object-like. A value is object-like if it's not `null`
-	 * and has a `typeof` result of "object".
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
-	 * @example
-	 *
-	 * _.isObjectLike({});
-	 * // => true
-	 *
-	 * _.isObjectLike([1, 2, 3]);
-	 * // => true
-	 *
-	 * _.isObjectLike(_.noop);
-	 * // => false
-	 *
-	 * _.isObjectLike(null);
-	 * // => false
-	 */
-	function isObjectLike(value) {
-	  return !!value && typeof value == 'object';
-	}
-	
-	/**
-	 * Checks if `value` is classified as a `Symbol` primitive or object.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is correctly classified,
-	 *  else `false`.
-	 * @example
-	 *
-	 * _.isSymbol(Symbol.iterator);
-	 * // => true
-	 *
-	 * _.isSymbol('abc');
-	 * // => false
-	 */
-	function isSymbol(value) {
-	  return typeof value == 'symbol' ||
-	    (isObjectLike(value) && objectToString.call(value) == symbolTag);
-	}
-	
-	/**
-	 * Converts `value` to a number.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to process.
-	 * @returns {number} Returns the number.
-	 * @example
-	 *
-	 * _.toNumber(3);
-	 * // => 3
-	 *
-	 * _.toNumber(Number.MIN_VALUE);
-	 * // => 5e-324
-	 *
-	 * _.toNumber(Infinity);
-	 * // => Infinity
-	 *
-	 * _.toNumber('3');
-	 * // => 3
-	 */
-	function toNumber(value) {
-	  if (typeof value == 'number') {
-	    return value;
-	  }
-	  if (isSymbol(value)) {
-	    return NAN;
-	  }
-	  if (isObject(value)) {
-	    var other = isFunction(value.valueOf) ? value.valueOf() : value;
-	    value = isObject(other) ? (other + '') : other;
-	  }
-	  if (typeof value != 'string') {
-	    return value === 0 ? value : +value;
-	  }
-	  value = value.replace(reTrim, '');
-	  var isBinary = reIsBinary.test(value);
-	  return (isBinary || reIsOctal.test(value))
-	    ? freeParseInt(value.slice(2), isBinary ? 2 : 8)
-	    : (reIsBadHex.test(value) ? NAN : +value);
-	}
-	
-	module.exports = debounce;
-
-
-/***/ },
-/* 147 */
-/*!*******************************!*\
-  !*** ./~/lodash.get/index.js ***!
-  \*******************************/
-/***/ function(module, exports, __webpack_require__) {
-
-	/**
-	 * lodash (Custom Build) <https://lodash.com/>
-	 * Build: `lodash modularize exports="npm" -o ./`
-	 * Copyright jQuery Foundation and other contributors <https://jquery.org/>
-	 * Released under MIT license <https://lodash.com/license>
-	 * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
-	 * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
-	 */
-	var stringToPath = __webpack_require__(/*! lodash._stringtopath */ 148);
-	
-	/** Used as references for various `Number` constants. */
-	var INFINITY = 1 / 0;
-	
-	/** `Object#toString` result references. */
-	var symbolTag = '[object Symbol]';
-	
-	/** Used to match property names within property paths. */
-	var reIsDeepProp = /\.|\[(?:[^[\]]*|(["'])(?:(?!\1)[^\\]|\\.)*?\1)\]/,
-	    reIsPlainProp = /^\w*$/;
-	
-	/** Used for built-in method references. */
-	var objectProto = Object.prototype;
-	
-	/**
-	 * Used to resolve the
-	 * [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
-	 * of values.
-	 */
-	var objectToString = objectProto.toString;
-	
-	/**
-	 * The base implementation of `_.get` without support for default values.
-	 *
-	 * @private
-	 * @param {Object} object The object to query.
-	 * @param {Array|string} path The path of the property to get.
-	 * @returns {*} Returns the resolved value.
-	 */
-	function baseGet(object, path) {
-	  path = isKey(path, object) ? [path] : castPath(path);
-	
-	  var index = 0,
-	      length = path.length;
-	
-	  while (object != null && index < length) {
-	    object = object[toKey(path[index++])];
-	  }
-	  return (index && index == length) ? object : undefined;
-	}
-	
-	/**
-	 * Casts `value` to a path array if it's not one.
-	 *
-	 * @private
-	 * @param {*} value The value to inspect.
-	 * @returns {Array} Returns the cast property path array.
-	 */
-	function castPath(value) {
-	  return isArray(value) ? value : stringToPath(value);
-	}
-	
-	/**
-	 * Checks if `value` is a property name and not a property path.
-	 *
-	 * @private
-	 * @param {*} value The value to check.
-	 * @param {Object} [object] The object to query keys on.
-	 * @returns {boolean} Returns `true` if `value` is a property name, else `false`.
-	 */
-	function isKey(value, object) {
-	  if (isArray(value)) {
-	    return false;
-	  }
-	  var type = typeof value;
-	  if (type == 'number' || type == 'symbol' || type == 'boolean' ||
-	      value == null || isSymbol(value)) {
-	    return true;
-	  }
-	  return reIsPlainProp.test(value) || !reIsDeepProp.test(value) ||
-	    (object != null && value in Object(object));
-	}
-	
-	/**
-	 * Converts `value` to a string key if it's not a string or symbol.
-	 *
-	 * @private
-	 * @param {*} value The value to inspect.
-	 * @returns {string|symbol} Returns the key.
-	 */
-	function toKey(value) {
-	  if (typeof value == 'string' || isSymbol(value)) {
-	    return value;
-	  }
-	  var result = (value + '');
-	  return (result == '0' && (1 / value) == -INFINITY) ? '-0' : result;
-	}
-	
-	/**
-	 * Checks if `value` is classified as an `Array` object.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 0.1.0
-	 * @type {Function}
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is correctly classified,
-	 *  else `false`.
-	 * @example
-	 *
-	 * _.isArray([1, 2, 3]);
-	 * // => true
-	 *
-	 * _.isArray(document.body.children);
-	 * // => false
-	 *
-	 * _.isArray('abc');
-	 * // => false
-	 *
-	 * _.isArray(_.noop);
-	 * // => false
-	 */
-	var isArray = Array.isArray;
-	
-	/**
-	 * Checks if `value` is object-like. A value is object-like if it's not `null`
-	 * and has a `typeof` result of "object".
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
-	 * @example
-	 *
-	 * _.isObjectLike({});
-	 * // => true
-	 *
-	 * _.isObjectLike([1, 2, 3]);
-	 * // => true
-	 *
-	 * _.isObjectLike(_.noop);
-	 * // => false
-	 *
-	 * _.isObjectLike(null);
-	 * // => false
-	 */
-	function isObjectLike(value) {
-	  return !!value && typeof value == 'object';
-	}
-	
-	/**
-	 * Checks if `value` is classified as a `Symbol` primitive or object.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is correctly classified,
-	 *  else `false`.
-	 * @example
-	 *
-	 * _.isSymbol(Symbol.iterator);
-	 * // => true
-	 *
-	 * _.isSymbol('abc');
-	 * // => false
-	 */
-	function isSymbol(value) {
-	  return typeof value == 'symbol' ||
-	    (isObjectLike(value) && objectToString.call(value) == symbolTag);
-	}
-	
-	/**
-	 * Gets the value at `path` of `object`. If the resolved value is
-	 * `undefined`, the `defaultValue` is used in its place.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 3.7.0
-	 * @category Object
-	 * @param {Object} object The object to query.
-	 * @param {Array|string} path The path of the property to get.
-	 * @param {*} [defaultValue] The value returned for `undefined` resolved values.
-	 * @returns {*} Returns the resolved value.
-	 * @example
-	 *
-	 * var object = { 'a': [{ 'b': { 'c': 3 } }] };
-	 *
-	 * _.get(object, 'a[0].b.c');
-	 * // => 3
-	 *
-	 * _.get(object, ['a', '0', 'b', 'c']);
-	 * // => 3
-	 *
-	 * _.get(object, 'a.b.c', 'default');
-	 * // => 'default'
-	 */
-	function get(object, path, defaultValue) {
-	  var result = object == null ? undefined : baseGet(object, path);
-	  return result === undefined ? defaultValue : result;
-	}
-	
-	module.exports = get;
-
-
-/***/ },
-/* 148 */
-/*!*****************************************!*\
-  !*** ./~/lodash._stringtopath/index.js ***!
-  \*****************************************/
-/***/ function(module, exports, __webpack_require__) {
-
-	/* WEBPACK VAR INJECTION */(function(module, global) {/**
-	 * lodash (Custom Build) <https://lodash.com/>
-	 * Build: `lodash modularize exports="npm" -o ./`
-	 * Copyright jQuery Foundation and other contributors <https://jquery.org/>
-	 * Released under MIT license <https://lodash.com/license>
-	 * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
-	 * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
-	 */
-	var baseToString = __webpack_require__(/*! lodash._basetostring */ 149);
-	
-	/** Used as the `TypeError` message for "Functions" methods. */
-	var FUNC_ERROR_TEXT = 'Expected a function';
-	
-	/** Used to stand-in for `undefined` hash values. */
-	var HASH_UNDEFINED = '__lodash_hash_undefined__';
-	
-	/** `Object#toString` result references. */
-	var funcTag = '[object Function]',
-	    genTag = '[object GeneratorFunction]';
-	
-	/** Used to match property names within property paths. */
-	var rePropName = /[^.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]/g;
-	
-	/**
-	 * Used to match `RegExp`
-	 * [syntax characters](http://ecma-international.org/ecma-262/6.0/#sec-patterns).
-	 */
-	var reRegExpChar = /[\\^$.*+?()[\]{}|]/g;
-	
-	/** Used to match backslashes in property paths. */
-	var reEscapeChar = /\\(\\)?/g;
-	
-	/** Used to detect host constructors (Safari). */
-	var reIsHostCtor = /^\[object .+?Constructor\]$/;
-	
-	/** Used to determine if values are of the language type `Object`. */
-	var objectTypes = {
-	  'function': true,
-	  'object': true
-	};
-	
-	/** Detect free variable `exports`. */
-	var freeExports = (objectTypes[typeof exports] && exports && !exports.nodeType)
-	  ? exports
-	  : undefined;
-	
-	/** Detect free variable `module`. */
-	var freeModule = (objectTypes[typeof module] && module && !module.nodeType)
-	  ? module
-	  : undefined;
-	
-	/** Detect free variable `global` from Node.js. */
-	var freeGlobal = checkGlobal(freeExports && freeModule && typeof global == 'object' && global);
-	
-	/** Detect free variable `self`. */
-	var freeSelf = checkGlobal(objectTypes[typeof self] && self);
-	
-	/** Detect free variable `window`. */
-	var freeWindow = checkGlobal(objectTypes[typeof window] && window);
-	
-	/** Detect `this` as the global object. */
-	var thisGlobal = checkGlobal(objectTypes[typeof this] && this);
-	
-	/**
-	 * Used as a reference to the global object.
-	 *
-	 * The `this` value is used if it's the global object to avoid Greasemonkey's
-	 * restricted `window` object, otherwise the `window` object is used.
-	 */
-	var root = freeGlobal ||
-	  ((freeWindow !== (thisGlobal && thisGlobal.window)) && freeWindow) ||
-	    freeSelf || thisGlobal || Function('return this')();
-	
-	/**
-	 * Checks if `value` is a global object.
-	 *
-	 * @private
-	 * @param {*} value The value to check.
-	 * @returns {null|Object} Returns `value` if it's a global object, else `null`.
-	 */
-	function checkGlobal(value) {
-	  return (value && value.Object === Object) ? value : null;
-	}
-	
-	/**
-	 * Checks if `value` is a host object in IE < 9.
-	 *
-	 * @private
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is a host object, else `false`.
-	 */
-	function isHostObject(value) {
-	  // Many host objects are `Object` objects that can coerce to strings
-	  // despite having improperly defined `toString` methods.
-	  var result = false;
-	  if (value != null && typeof value.toString != 'function') {
-	    try {
-	      result = !!(value + '');
-	    } catch (e) {}
-	  }
-	  return result;
-	}
-	
-	/** Used for built-in method references. */
-	var arrayProto = Array.prototype,
-	    objectProto = Object.prototype;
-	
-	/** Used to resolve the decompiled source of functions. */
-	var funcToString = Function.prototype.toString;
-	
-	/** Used to check objects for own properties. */
-	var hasOwnProperty = objectProto.hasOwnProperty;
-	
-	/**
-	 * Used to resolve the
-	 * [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
-	 * of values.
-	 */
-	var objectToString = objectProto.toString;
-	
-	/** Used to detect if a method is native. */
-	var reIsNative = RegExp('^' +
-	  funcToString.call(hasOwnProperty).replace(reRegExpChar, '\\$&')
-	  .replace(/hasOwnProperty|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
-	);
-	
-	/** Built-in value references. */
-	var splice = arrayProto.splice;
-	
-	/* Built-in method references that are verified to be native. */
-	var Map = getNative(root, 'Map'),
-	    nativeCreate = getNative(Object, 'create');
-	
-	/**
-	 * Creates a hash object.
-	 *
-	 * @private
-	 * @constructor
-	 * @param {Array} [entries] The key-value pairs to cache.
-	 */
-	function Hash(entries) {
-	  var index = -1,
-	      length = entries ? entries.length : 0;
-	
-	  this.clear();
-	  while (++index < length) {
-	    var entry = entries[index];
-	    this.set(entry[0], entry[1]);
-	  }
-	}
-	
-	/**
-	 * Removes all key-value entries from the hash.
-	 *
-	 * @private
-	 * @name clear
-	 * @memberOf Hash
-	 */
-	function hashClear() {
-	  this.__data__ = nativeCreate ? nativeCreate(null) : {};
-	}
-	
-	/**
-	 * Removes `key` and its value from the hash.
-	 *
-	 * @private
-	 * @name delete
-	 * @memberOf Hash
-	 * @param {Object} hash The hash to modify.
-	 * @param {string} key The key of the value to remove.
-	 * @returns {boolean} Returns `true` if the entry was removed, else `false`.
-	 */
-	function hashDelete(key) {
-	  return this.has(key) && delete this.__data__[key];
-	}
-	
-	/**
-	 * Gets the hash value for `key`.
-	 *
-	 * @private
-	 * @name get
-	 * @memberOf Hash
-	 * @param {string} key The key of the value to get.
-	 * @returns {*} Returns the entry value.
-	 */
-	function hashGet(key) {
-	  var data = this.__data__;
-	  if (nativeCreate) {
-	    var result = data[key];
-	    return result === HASH_UNDEFINED ? undefined : result;
-	  }
-	  return hasOwnProperty.call(data, key) ? data[key] : undefined;
-	}
-	
-	/**
-	 * Checks if a hash value for `key` exists.
-	 *
-	 * @private
-	 * @name has
-	 * @memberOf Hash
-	 * @param {string} key The key of the entry to check.
-	 * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
-	 */
-	function hashHas(key) {
-	  var data = this.__data__;
-	  return nativeCreate ? data[key] !== undefined : hasOwnProperty.call(data, key);
-	}
-	
-	/**
-	 * Sets the hash `key` to `value`.
-	 *
-	 * @private
-	 * @name set
-	 * @memberOf Hash
-	 * @param {string} key The key of the value to set.
-	 * @param {*} value The value to set.
-	 * @returns {Object} Returns the hash instance.
-	 */
-	function hashSet(key, value) {
-	  var data = this.__data__;
-	  data[key] = (nativeCreate && value === undefined) ? HASH_UNDEFINED : value;
-	  return this;
-	}
-	
-	// Add methods to `Hash`.
-	Hash.prototype.clear = hashClear;
-	Hash.prototype['delete'] = hashDelete;
-	Hash.prototype.get = hashGet;
-	Hash.prototype.has = hashHas;
-	Hash.prototype.set = hashSet;
-	
-	/**
-	 * Creates an list cache object.
-	 *
-	 * @private
-	 * @constructor
-	 * @param {Array} [entries] The key-value pairs to cache.
-	 */
-	function ListCache(entries) {
-	  var index = -1,
-	      length = entries ? entries.length : 0;
-	
-	  this.clear();
-	  while (++index < length) {
-	    var entry = entries[index];
-	    this.set(entry[0], entry[1]);
-	  }
-	}
-	
-	/**
-	 * Removes all key-value entries from the list cache.
-	 *
-	 * @private
-	 * @name clear
-	 * @memberOf ListCache
-	 */
-	function listCacheClear() {
-	  this.__data__ = [];
-	}
-	
-	/**
-	 * Removes `key` and its value from the list cache.
-	 *
-	 * @private
-	 * @name delete
-	 * @memberOf ListCache
-	 * @param {string} key The key of the value to remove.
-	 * @returns {boolean} Returns `true` if the entry was removed, else `false`.
-	 */
-	function listCacheDelete(key) {
-	  var data = this.__data__,
-	      index = assocIndexOf(data, key);
-	
-	  if (index < 0) {
-	    return false;
-	  }
-	  var lastIndex = data.length - 1;
-	  if (index == lastIndex) {
-	    data.pop();
-	  } else {
-	    splice.call(data, index, 1);
-	  }
-	  return true;
-	}
-	
-	/**
-	 * Gets the list cache value for `key`.
-	 *
-	 * @private
-	 * @name get
-	 * @memberOf ListCache
-	 * @param {string} key The key of the value to get.
-	 * @returns {*} Returns the entry value.
-	 */
-	function listCacheGet(key) {
-	  var data = this.__data__,
-	      index = assocIndexOf(data, key);
-	
-	  return index < 0 ? undefined : data[index][1];
-	}
-	
-	/**
-	 * Checks if a list cache value for `key` exists.
-	 *
-	 * @private
-	 * @name has
-	 * @memberOf ListCache
-	 * @param {string} key The key of the entry to check.
-	 * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
-	 */
-	function listCacheHas(key) {
-	  return assocIndexOf(this.__data__, key) > -1;
-	}
-	
-	/**
-	 * Sets the list cache `key` to `value`.
-	 *
-	 * @private
-	 * @name set
-	 * @memberOf ListCache
-	 * @param {string} key The key of the value to set.
-	 * @param {*} value The value to set.
-	 * @returns {Object} Returns the list cache instance.
-	 */
-	function listCacheSet(key, value) {
-	  var data = this.__data__,
-	      index = assocIndexOf(data, key);
-	
-	  if (index < 0) {
-	    data.push([key, value]);
-	  } else {
-	    data[index][1] = value;
-	  }
-	  return this;
-	}
-	
-	// Add methods to `ListCache`.
-	ListCache.prototype.clear = listCacheClear;
-	ListCache.prototype['delete'] = listCacheDelete;
-	ListCache.prototype.get = listCacheGet;
-	ListCache.prototype.has = listCacheHas;
-	ListCache.prototype.set = listCacheSet;
-	
-	/**
-	 * Creates a map cache object to store key-value pairs.
-	 *
-	 * @private
-	 * @constructor
-	 * @param {Array} [entries] The key-value pairs to cache.
-	 */
-	function MapCache(entries) {
-	  var index = -1,
-	      length = entries ? entries.length : 0;
-	
-	  this.clear();
-	  while (++index < length) {
-	    var entry = entries[index];
-	    this.set(entry[0], entry[1]);
-	  }
-	}
-	
-	/**
-	 * Removes all key-value entries from the map.
-	 *
-	 * @private
-	 * @name clear
-	 * @memberOf MapCache
-	 */
-	function mapCacheClear() {
-	  this.__data__ = {
-	    'hash': new Hash,
-	    'map': new (Map || ListCache),
-	    'string': new Hash
-	  };
-	}
-	
-	/**
-	 * Removes `key` and its value from the map.
-	 *
-	 * @private
-	 * @name delete
-	 * @memberOf MapCache
-	 * @param {string} key The key of the value to remove.
-	 * @returns {boolean} Returns `true` if the entry was removed, else `false`.
-	 */
-	function mapCacheDelete(key) {
-	  return getMapData(this, key)['delete'](key);
-	}
-	
-	/**
-	 * Gets the map value for `key`.
-	 *
-	 * @private
-	 * @name get
-	 * @memberOf MapCache
-	 * @param {string} key The key of the value to get.
-	 * @returns {*} Returns the entry value.
-	 */
-	function mapCacheGet(key) {
-	  return getMapData(this, key).get(key);
-	}
-	
-	/**
-	 * Checks if a map value for `key` exists.
-	 *
-	 * @private
-	 * @name has
-	 * @memberOf MapCache
-	 * @param {string} key The key of the entry to check.
-	 * @returns {boolean} Returns `true` if an entry for `key` exists, else `false`.
-	 */
-	function mapCacheHas(key) {
-	  return getMapData(this, key).has(key);
-	}
-	
-	/**
-	 * Sets the map `key` to `value`.
-	 *
-	 * @private
-	 * @name set
-	 * @memberOf MapCache
-	 * @param {string} key The key of the value to set.
-	 * @param {*} value The value to set.
-	 * @returns {Object} Returns the map cache instance.
-	 */
-	function mapCacheSet(key, value) {
-	  getMapData(this, key).set(key, value);
-	  return this;
-	}
-	
-	// Add methods to `MapCache`.
-	MapCache.prototype.clear = mapCacheClear;
-	MapCache.prototype['delete'] = mapCacheDelete;
-	MapCache.prototype.get = mapCacheGet;
-	MapCache.prototype.has = mapCacheHas;
-	MapCache.prototype.set = mapCacheSet;
-	
-	/**
-	 * Gets the index at which the `key` is found in `array` of key-value pairs.
-	 *
-	 * @private
-	 * @param {Array} array The array to search.
-	 * @param {*} key The key to search for.
-	 * @returns {number} Returns the index of the matched value, else `-1`.
-	 */
-	function assocIndexOf(array, key) {
-	  var length = array.length;
-	  while (length--) {
-	    if (eq(array[length][0], key)) {
-	      return length;
-	    }
-	  }
-	  return -1;
-	}
-	
-	/**
-	 * Gets the data for `map`.
-	 *
-	 * @private
-	 * @param {Object} map The map to query.
-	 * @param {string} key The reference key.
-	 * @returns {*} Returns the map data.
-	 */
-	function getMapData(map, key) {
-	  var data = map.__data__;
-	  return isKeyable(key)
-	    ? data[typeof key == 'string' ? 'string' : 'hash']
-	    : data.map;
-	}
-	
-	/**
-	 * Gets the native function at `key` of `object`.
-	 *
-	 * @private
-	 * @param {Object} object The object to query.
-	 * @param {string} key The key of the method to get.
-	 * @returns {*} Returns the function if it's native, else `undefined`.
-	 */
-	function getNative(object, key) {
-	  var value = object[key];
-	  return isNative(value) ? value : undefined;
-	}
-	
-	/**
-	 * Checks if `value` is suitable for use as unique object key.
-	 *
-	 * @private
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is suitable, else `false`.
-	 */
-	function isKeyable(value) {
-	  var type = typeof value;
-	  return (type == 'string' || type == 'number' || type == 'symbol' || type == 'boolean')
-	    ? (value !== '__proto__')
-	    : (value === null);
-	}
-	
-	/**
-	 * Converts `string` to a property path array.
-	 *
-	 * @private
-	 * @param {string} string The string to convert.
-	 * @returns {Array} Returns the property path array.
-	 */
-	var stringToPath = memoize(function(string) {
-	  var result = [];
-	  toString(string).replace(rePropName, function(match, number, quote, string) {
-	    result.push(quote ? string.replace(reEscapeChar, '$1') : (number || match));
-	  });
-	  return result;
-	});
-	
-	/**
-	 * Converts `func` to its source code.
-	 *
-	 * @private
-	 * @param {Function} func The function to process.
-	 * @returns {string} Returns the source code.
-	 */
-	function toSource(func) {
-	  if (func != null) {
-	    try {
-	      return funcToString.call(func);
-	    } catch (e) {}
-	    try {
-	      return (func + '');
-	    } catch (e) {}
-	  }
-	  return '';
-	}
-	
-	/**
-	 * Creates a function that memoizes the result of `func`. If `resolver` is
-	 * provided, it determines the cache key for storing the result based on the
-	 * arguments provided to the memoized function. By default, the first argument
-	 * provided to the memoized function is used as the map cache key. The `func`
-	 * is invoked with the `this` binding of the memoized function.
-	 *
-	 * **Note:** The cache is exposed as the `cache` property on the memoized
-	 * function. Its creation may be customized by replacing the `_.memoize.Cache`
-	 * constructor with one whose instances implement the
-	 * [`Map`](http://ecma-international.org/ecma-262/6.0/#sec-properties-of-the-map-prototype-object)
-	 * method interface of `delete`, `get`, `has`, and `set`.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 0.1.0
-	 * @category Function
-	 * @param {Function} func The function to have its output memoized.
-	 * @param {Function} [resolver] The function to resolve the cache key.
-	 * @returns {Function} Returns the new memoized function.
-	 * @example
-	 *
-	 * var object = { 'a': 1, 'b': 2 };
-	 * var other = { 'c': 3, 'd': 4 };
-	 *
-	 * var values = _.memoize(_.values);
-	 * values(object);
-	 * // => [1, 2]
-	 *
-	 * values(other);
-	 * // => [3, 4]
-	 *
-	 * object.a = 2;
-	 * values(object);
-	 * // => [1, 2]
-	 *
-	 * // Modify the result cache.
-	 * values.cache.set(object, ['a', 'b']);
-	 * values(object);
-	 * // => ['a', 'b']
-	 *
-	 * // Replace `_.memoize.Cache`.
-	 * _.memoize.Cache = WeakMap;
-	 */
-	function memoize(func, resolver) {
-	  if (typeof func != 'function' || (resolver && typeof resolver != 'function')) {
-	    throw new TypeError(FUNC_ERROR_TEXT);
-	  }
-	  var memoized = function() {
-	    var args = arguments,
-	        key = resolver ? resolver.apply(this, args) : args[0],
-	        cache = memoized.cache;
-	
-	    if (cache.has(key)) {
-	      return cache.get(key);
-	    }
-	    var result = func.apply(this, args);
-	    memoized.cache = cache.set(key, result);
-	    return result;
-	  };
-	  memoized.cache = new (memoize.Cache || MapCache);
-	  return memoized;
-	}
-	
-	// Assign cache to `_.memoize`.
-	memoize.Cache = MapCache;
-	
-	/**
-	 * Performs a
-	 * [`SameValueZero`](http://ecma-international.org/ecma-262/6.0/#sec-samevaluezero)
-	 * comparison between two values to determine if they are equivalent.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to compare.
-	 * @param {*} other The other value to compare.
-	 * @returns {boolean} Returns `true` if the values are equivalent, else `false`.
-	 * @example
-	 *
-	 * var object = { 'user': 'fred' };
-	 * var other = { 'user': 'fred' };
-	 *
-	 * _.eq(object, object);
-	 * // => true
-	 *
-	 * _.eq(object, other);
-	 * // => false
-	 *
-	 * _.eq('a', 'a');
-	 * // => true
-	 *
-	 * _.eq('a', Object('a'));
-	 * // => false
-	 *
-	 * _.eq(NaN, NaN);
-	 * // => true
-	 */
-	function eq(value, other) {
-	  return value === other || (value !== value && other !== other);
-	}
-	
-	/**
-	 * Checks if `value` is classified as a `Function` object.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 0.1.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is correctly classified,
-	 *  else `false`.
-	 * @example
-	 *
-	 * _.isFunction(_);
-	 * // => true
-	 *
-	 * _.isFunction(/abc/);
-	 * // => false
-	 */
-	function isFunction(value) {
-	  // The use of `Object#toString` avoids issues with the `typeof` operator
-	  // in Safari 8 which returns 'object' for typed array and weak map constructors,
-	  // and PhantomJS 1.9 which returns 'function' for `NodeList` instances.
-	  var tag = isObject(value) ? objectToString.call(value) : '';
-	  return tag == funcTag || tag == genTag;
-	}
-	
-	/**
-	 * Checks if `value` is the
-	 * [language type](http://www.ecma-international.org/ecma-262/6.0/#sec-ecmascript-language-types)
-	 * of `Object`. (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 0.1.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is an object, else `false`.
-	 * @example
-	 *
-	 * _.isObject({});
-	 * // => true
-	 *
-	 * _.isObject([1, 2, 3]);
-	 * // => true
-	 *
-	 * _.isObject(_.noop);
-	 * // => true
-	 *
-	 * _.isObject(null);
-	 * // => false
-	 */
-	function isObject(value) {
-	  var type = typeof value;
-	  return !!value && (type == 'object' || type == 'function');
-	}
-	
-	/**
-	 * Checks if `value` is a native function.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 3.0.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is a native function,
-	 *  else `false`.
-	 * @example
-	 *
-	 * _.isNative(Array.prototype.push);
-	 * // => true
-	 *
-	 * _.isNative(_);
-	 * // => false
-	 */
-	function isNative(value) {
-	  if (!isObject(value)) {
-	    return false;
-	  }
-	  var pattern = (isFunction(value) || isHostObject(value)) ? reIsNative : reIsHostCtor;
-	  return pattern.test(toSource(value));
-	}
-	
-	/**
-	 * Converts `value` to a string. An empty string is returned for `null`
-	 * and `undefined` values. The sign of `-0` is preserved.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to process.
-	 * @returns {string} Returns the string.
-	 * @example
-	 *
-	 * _.toString(null);
-	 * // => ''
-	 *
-	 * _.toString(-0);
-	 * // => '-0'
-	 *
-	 * _.toString([1, 2, 3]);
-	 * // => '1,2,3'
-	 */
-	function toString(value) {
-	  return value == null ? '' : baseToString(value);
-	}
-	
-	module.exports = stringToPath;
-	
-	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(/*! ./../webpack/buildin/module.js */ 116)(module), (function() { return this; }())))
-
-/***/ },
-/* 149 */
-/*!*****************************************!*\
-  !*** ./~/lodash._basetostring/index.js ***!
-  \*****************************************/
-/***/ function(module, exports, __webpack_require__) {
-
-	/* WEBPACK VAR INJECTION */(function(module, global) {/**
-	 * lodash (Custom Build) <https://lodash.com/>
-	 * Build: `lodash modularize exports="npm" -o ./`
-	 * Copyright jQuery Foundation and other contributors <https://jquery.org/>
-	 * Released under MIT license <https://lodash.com/license>
-	 * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
-	 * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
-	 */
-	
-	/** Used as references for various `Number` constants. */
-	var INFINITY = 1 / 0;
-	
-	/** `Object#toString` result references. */
-	var symbolTag = '[object Symbol]';
-	
-	/** Used to determine if values are of the language type `Object`. */
-	var objectTypes = {
-	  'function': true,
-	  'object': true
-	};
-	
-	/** Detect free variable `exports`. */
-	var freeExports = (objectTypes[typeof exports] && exports && !exports.nodeType)
-	  ? exports
-	  : undefined;
-	
-	/** Detect free variable `module`. */
-	var freeModule = (objectTypes[typeof module] && module && !module.nodeType)
-	  ? module
-	  : undefined;
-	
-	/** Detect free variable `global` from Node.js. */
-	var freeGlobal = checkGlobal(freeExports && freeModule && typeof global == 'object' && global);
-	
-	/** Detect free variable `self`. */
-	var freeSelf = checkGlobal(objectTypes[typeof self] && self);
-	
-	/** Detect free variable `window`. */
-	var freeWindow = checkGlobal(objectTypes[typeof window] && window);
-	
-	/** Detect `this` as the global object. */
-	var thisGlobal = checkGlobal(objectTypes[typeof this] && this);
-	
-	/**
-	 * Used as a reference to the global object.
-	 *
-	 * The `this` value is used if it's the global object to avoid Greasemonkey's
-	 * restricted `window` object, otherwise the `window` object is used.
-	 */
-	var root = freeGlobal ||
-	  ((freeWindow !== (thisGlobal && thisGlobal.window)) && freeWindow) ||
-	    freeSelf || thisGlobal || Function('return this')();
-	
-	/**
-	 * Checks if `value` is a global object.
-	 *
-	 * @private
-	 * @param {*} value The value to check.
-	 * @returns {null|Object} Returns `value` if it's a global object, else `null`.
-	 */
-	function checkGlobal(value) {
-	  return (value && value.Object === Object) ? value : null;
-	}
-	
-	/** Used for built-in method references. */
-	var objectProto = Object.prototype;
-	
-	/**
-	 * Used to resolve the
-	 * [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
-	 * of values.
-	 */
-	var objectToString = objectProto.toString;
-	
-	/** Built-in value references. */
-	var Symbol = root.Symbol;
-	
-	/** Used to convert symbols to primitives and strings. */
-	var symbolProto = Symbol ? Symbol.prototype : undefined,
-	    symbolToString = symbolProto ? symbolProto.toString : undefined;
-	
-	/**
-	 * The base implementation of `_.toString` which doesn't convert nullish
-	 * values to empty strings.
-	 *
-	 * @private
-	 * @param {*} value The value to process.
-	 * @returns {string} Returns the string.
-	 */
-	function baseToString(value) {
-	  // Exit early for strings to avoid a performance hit in some environments.
-	  if (typeof value == 'string') {
-	    return value;
-	  }
-	  if (isSymbol(value)) {
-	    return symbolToString ? symbolToString.call(value) : '';
-	  }
-	  var result = (value + '');
-	  return (result == '0' && (1 / value) == -INFINITY) ? '-0' : result;
-	}
-	
-	/**
-	 * Checks if `value` is object-like. A value is object-like if it's not `null`
-	 * and has a `typeof` result of "object".
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
-	 * @example
-	 *
-	 * _.isObjectLike({});
-	 * // => true
-	 *
-	 * _.isObjectLike([1, 2, 3]);
-	 * // => true
-	 *
-	 * _.isObjectLike(_.noop);
-	 * // => false
-	 *
-	 * _.isObjectLike(null);
-	 * // => false
-	 */
-	function isObjectLike(value) {
-	  return !!value && typeof value == 'object';
-	}
-	
-	/**
-	 * Checks if `value` is classified as a `Symbol` primitive or object.
-	 *
-	 * @static
-	 * @memberOf _
-	 * @since 4.0.0
-	 * @category Lang
-	 * @param {*} value The value to check.
-	 * @returns {boolean} Returns `true` if `value` is correctly classified,
-	 *  else `false`.
-	 * @example
-	 *
-	 * _.isSymbol(Symbol.iterator);
-	 * // => true
-	 *
-	 * _.isSymbol('abc');
-	 * // => false
-	 */
-	function isSymbol(value) {
-	  return typeof value == 'symbol' ||
-	    (isObjectLike(value) && objectToString.call(value) == symbolTag);
-	}
-	
-	module.exports = baseToString;
-	
-	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(/*! ./../webpack/buildin/module.js */ 116)(module), (function() { return this; }())))
-
-/***/ },
-/* 150 */
-/*!**************************!*\
-  !*** ./scripts/Point.js ***!
-  \**************************/
-/***/ function(module, exports) {
-
-	'use strict';
-	
-	Object.defineProperty(exports, "__esModule", {
-		value: true
-	});
-	
-	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-	
-	function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-	
-	var Point = function () {
-		function Point() {
-			var x = arguments.length <= 0 || arguments[0] === undefined ? 0 : arguments[0];
-			var y = arguments.length <= 1 || arguments[1] === undefined ? 0 : arguments[1];
-	
-			_classCallCheck(this, Point);
-	
-			this.x = x;
-			this.y = y;
-			return this;
-		}
-	
-		_createClass(Point, [{
-			key: 'abs',
-			value: function abs() {
-				this.x = Math.abs(this.x);
-				this.y = Math.abs(this.y);
-				return this;
-			}
-		}, {
-			key: 'add',
-			value: function add() /* point1, point2, ... */{
-				if (arguments.length === 1 && typeof arguments[0] == 'number') {
-					this.x += arguments[0];
-					this.y += arguments[0];
-				} else {
-					var _iteratorNormalCompletion = true;
-					var _didIteratorError = false;
-					var _iteratorError = undefined;
-	
-					try {
-						for (var _iterator = arguments[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-							var argument = _step.value;
-	
-							this.x += argument.x;
-							this.y += argument.y;
-						}
-					} catch (err) {
-						_didIteratorError = true;
-						_iteratorError = err;
-					} finally {
-						try {
-							if (!_iteratorNormalCompletion && _iterator.return) {
-								_iterator.return();
-							}
-						} finally {
-							if (_didIteratorError) {
-								throw _iteratorError;
-							}
-						}
-					}
-				}
-				return this;
-			}
-		}, {
-			key: 'subtract',
-			value: function subtract() /* point1, point2, ... */{
-				if (arguments.length === 1 && typeof arguments[0] == 'number') {
-					this.x -= arguments[0];
-					this.y -= arguments[0];
-				} else {
-					var _iteratorNormalCompletion2 = true;
-					var _didIteratorError2 = false;
-					var _iteratorError2 = undefined;
-	
-					try {
-						for (var _iterator2 = arguments[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-							var argument = _step2.value;
-	
-							this.x -= argument.x;
-							this.y -= argument.y;
-						}
-					} catch (err) {
-						_didIteratorError2 = true;
-						_iteratorError2 = err;
-					} finally {
-						try {
-							if (!_iteratorNormalCompletion2 && _iterator2.return) {
-								_iterator2.return();
-							}
-						} finally {
-							if (_didIteratorError2) {
-								throw _iteratorError2;
-							}
-						}
-					}
-				}
-				return this;
-			}
-		}, {
-			key: 'multiply',
-			value: function multiply(point) {
-				if (typeof point == 'number') {
-					this.x *= point;
-					this.y *= point;
-				} else {
-					this.x *= point.x;
-					this.y *= point.y;
-				}
-				return this;
-			}
-		}, {
-			key: 'divide',
-			value: function divide(point) {
-				if (typeof point == 'number') {
-					this.x /= point;
-					this.y /= point;
-				} else {
-					this.x /= point.x;
-					this.y /= point.y;
-				}
-				return this;
-			}
-		}, {
-			key: 'distance',
-			value: function distance(point) {
-				return Math.sqrt(Math.pow(point.x - this.x, 2) + Math.pow(point.y - this.y, 2));
-			}
-		}, {
-			key: 'normalize',
-			value: function normalize() {
-				var scale = arguments.length <= 0 || arguments[0] === undefined ? 1 : arguments[0];
-	
-				var norm = Math.sqrt(this.x * this.x + this.y * this.y);
-				if (norm !== 0) {
-					this.x = scale * this.x / norm;
-					this.y = scale * this.y / norm;
-				}
-				return this;
-			}
-		}, {
-			key: 'limit',
-			value: function limit(max) {
-				if (this.x * this.x + this.y * this.y > max * max) {
-					this.normalize();
-					this.multiply(max);
-				}
-				return this;
-			}
-		}]);
-	
-		return Point;
-	}();
-	
-	exports.default = Point;
 
 /***/ }
 /******/ ]);

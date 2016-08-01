@@ -17,9 +17,10 @@ export default class Point {
 			this.x += arguments[0];
 			this.y += arguments[0];
 		}else{
-			for(let argument of arguments) {
-				this.x += argument.x;
-				this.y += argument.y;
+			// not using a for of loop because ie11
+			for(let a=0; a<arguments.length; a++) {
+				this.x += arguments[a].x;
+				this.y += arguments[a].y;
 			}
 		}
 		return this;
@@ -30,9 +31,10 @@ export default class Point {
 			this.x -= arguments[0];
 			this.y -= arguments[0];
 		}else{
-			for(let argument of arguments) {
-				this.x -= argument.x;
-				this.y -= argument.y;
+			// not using a for of loop because ie11
+			for(let a=0; a<arguments.length; a++) {
+				this.x -= arguments[a].x;
+				this.y -= arguments[a].y;
 			}
 		}
 		return this;
